@@ -68,7 +68,7 @@ void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
 
 int main(int argc, char *argv[]) {
 
-    //setenv("ZED_SDK_ALLOW_UNCALIBRATED_MODE", "1", 1);
+    setenv("ZED_SDK_ALLOW_UNCALIBRATED_MODE", "1", 1);
 
     std::cout << std::endl;
     std::cout << "The calibration process requires a checkerboard of known characteristics." << std::endl;
@@ -97,6 +97,8 @@ int main(int argc, char *argv[]) {
     // change can_use_calib_prior if you dont want to use the calibration file
     const bool can_use_calib_prior = status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
     bool need_intrinsic_estimation = !can_use_calib_prior;
+
+    std::cout << "Using prior calibration: " << (can_use_calib_prior ? "Yes" : "No") << std::endl;
 
     auto zed_info = zed_camera.getCameraInformation();
     sl::Resolution camera_resolution = zed_info.camera_configuration.resolution;
