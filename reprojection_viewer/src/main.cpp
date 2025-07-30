@@ -18,11 +18,6 @@
 //
 ///////////////////////////////////////////////////////////////////////////
 
-/*********************************************************************
- ** This sample demonstrates how to capture a live 3D point cloud   **
- ** with the ZED SDK and display the result in an OpenGL window.    **
- *********************************************************************/
-
 // ZED includes
 #include <sl/Camera.hpp>
 
@@ -35,8 +30,28 @@
 using namespace std;
 using namespace sl;
 
-std::string parseArgs(int argc, char **argv, sl::InitParameters& param);
 
+struct Args {
+    std::string optional_settings_path = "";
+    std::string svo_path = "";
+
+    void parse(int argc, char* argv[]) {
+        for (int i = 1; i < argc; i++) {
+            std::string arg = argv[i];
+            if (arg == "--calib_path" && i + 1 < argc) {
+                optional_settings_path = argv[++i];
+            } else if (arg == "--svo" && i + 1 < argc) {
+                svo_path = argv[++i];
+            } else if (arg == "--help" || arg == "-h") {
+                std::cout << "Usage: " << argv[0] << " [options]\n";
+                std::cout << "  --calib_path <file>  Path to the optional calibration file\n";
+                std::cout << "  --svo <file>         Path to the SVO file\n";
+                std::cout << "  --help, -h          Show this help message\n";
+                exit(0);
+            }
+        }
+    }
+};
 
 cv::Mat cvtDisto(sl::CameraParameters &camera_param, bool fisheye) {
     cv::Mat disto;
@@ -189,18 +204,30 @@ cv::Mat createMaskUsingUndistortPoints( int width, int height, cv::Mat& camera_m
 
 
 int main(int argc, char **argv) {
+    Args args;
+    args.parse(argc, argv);
+
     Camera zed;
     // Set configuration parameters for the ZED
     InitParameters init_parameters;
     init_parameters.depth_mode = DEPTH_MODE::NEURAL;
-    //init_parameters.coordinate_units = UNIT::METER; // Use meters as the unit of measurement
     init_parameters.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Y_UP; // OpenGL's coordinate system is right_handed
     init_parameters.sdk_verbose = 1;
     init_parameters.maximum_working_resolution = sl::Resolution(0, 0);
 
-    if(argc > 1) {
-        init_parameters.input.setFromSVOFile(argv[1]);
+    if (!args.svo_path.empty()) {
+        std::cout << "Using SVO file: " << args.svo_path << std::endl;
+        init_parameters.input.setFromSVOFile(sl::String(args.svo_path.c_str()));
+    } else {
+        init_parameters.camera_resolution = RESOLUTION::AUTO; // Set the camera resolution
+        init_parameters.camera_fps = 30; // Set the camera FPS
     }
+
+    if (!args.optional_settings_path.empty()) {
+        std::cout << "Using optional settings from: " << args.optional_settings_path << std::endl;
+        init_parameters.optional_opencv_calibration_file = sl::String(args.optional_settings_path.c_str());
+    }
+
 
     // Open the camera
     auto returned_state = zed.open(init_parameters);
