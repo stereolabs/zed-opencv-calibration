@@ -66,7 +66,31 @@ void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
 }
 
 
+struct Args {
+    std::string svo_path = "";
+    bool is_fisheye = false;
+
+    void parse(int argc, char* argv[]) {
+        for (int i = 1; i < argc; i++) {
+            std::string arg = argv[i];
+            if (arg == "--svo" && i + 1 < argc) {
+                svo_path = argv[++i];
+            } else if (arg == "--fisheye") {
+                is_fisheye = true;
+            } else if (arg == "--help" || arg == "-h") {
+                std::cout << "Usage: " << argv[0] << " [options]\n";
+                std::cout << "  --svo <file>         Path to the SVO file\n";
+                std::cout << "  --help, -h          Show this help message\n";
+                exit(0);
+            }
+        }
+    }
+};
+
+
 int main(int argc, char *argv[]) {
+    Args args;
+    args.parse(argc, argv);
 
     setenv("ZED_SDK_ALLOW_UNCALIBRATED_MODE", "1", 1);
 
@@ -79,6 +103,8 @@ int main(int argc, char *argv[]) {
     sl::Camera zed_camera;
     sl::InitParameters init_params;
     init_params.depth_mode = sl::DEPTH_MODE::NONE; // No depth required for calibration
+    init_params.camera_resolution = sl::RESOLUTION::AUTO; // Use the camera's native resolution
+    init_params.camera_fps = 30; // Set the camera FPS
     init_params.enable_image_validity_check = false; // Disable image validity check for performance
     init_params.camera_disable_self_calib = true;
 
@@ -104,6 +130,16 @@ int main(int argc, char *argv[]) {
     sl::Resolution camera_resolution = zed_info.camera_configuration.resolution;
 
     StereoCalib calib;
+    if (args.is_fisheye) {
+        std::cout << "Using fisheye model for calibration." << std::endl;
+        calib.left.disto_model_RadTan = false;
+        calib.right.disto_model_RadTan = false;
+    } else {
+        std::cout << "Using radial-tangential model for calibration." << std::endl;
+        calib.left.disto_model_RadTan = true;
+        calib.right.disto_model_RadTan = true;
+    }
+
     calib.initDefault();
     if(can_use_calib_prior)
         calib.setFrom(zed_info.camera_configuration.calibration_parameters_raw);

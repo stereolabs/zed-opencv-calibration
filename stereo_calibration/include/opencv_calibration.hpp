@@ -12,6 +12,16 @@ struct CameraCalib{
 
     void initDefault(){
         K = cv::Mat::eye(3, 3, CV_64FC1);
+
+        if (disto_model_RadTan) {
+            // Radial and tangential distortion
+            const int nb_coeff = 8; // 6 radial + 2 tangential; could be extended to 12 with prism distortion
+            D = cv::Mat::zeros(1, nb_coeff, CV_64FC1);
+        } else {
+            // Fisheye model has 4 coefficients: k1, k2, k3, k4
+            D = cv::Mat::zeros(1, 4, CV_64FC1);
+        }
+
     }
 
     void setFrom(sl::CameraParameters & cam) {

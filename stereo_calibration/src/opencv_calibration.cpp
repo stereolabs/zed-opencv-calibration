@@ -76,7 +76,7 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         int flag = cv::CALIB_ZERO_DISPARITY + cv::CALIB_FIX_INTRINSIC;
         auto err = calib_data.calibrate(object_points, pts_l, pts_r, imageSize, flag, crit);
 
-        std::cout << " * Reprojection error:\t Left "<<rms_l<<" Ritght "<<rms_r<<" Stereo " << err << std::endl;
+        std::cout << " * Reprojection error:\t Left "<<rms_l<<" Right "<<rms_r<<" Stereo " << err << std::endl;
 
         if(rms_l > 0.5f || rms_r > 0.5f || err > 0.5f)
             std::cout<<"\n\t !! Warning !!\n The reprojection error looks too high, check that the lens are clean (sharp images) and that the pattern is printed/mounted on a strong and flat surface."<<std::endl;
