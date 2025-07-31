@@ -51,7 +51,7 @@ const int MaxPts = 90;
 const cv::Scalar info_color = cv::Scalar(50,205,50);
 const cv::Scalar warn_color = cv::Scalar(0, 128, 255);
 
-const bool image_stack_horizontal = false; // true for horizontal, false for vertical
+const bool image_stack_horizontal = true; // true for horizontal, false for vertical
 
 
 void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
@@ -184,6 +184,7 @@ int main(int argc, char *argv[]) {
 
     const std::string window_name = "ZED Calibration";
     cv::namedWindow(window_name, cv::WINDOW_NORMAL);
+    cv::resizeWindow(window_name, 1280, 960); // Set a larger window size
     while (key != 'q' && key != 27) {
 
         if (zed_camera.grab() == sl::ERROR_CODE::SUCCESS) {
