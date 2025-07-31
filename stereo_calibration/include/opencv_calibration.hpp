@@ -2,6 +2,8 @@
 
 #include <sl/Camera.hpp>
 #include <opencv2/opencv.hpp>
+#include <numeric>
+#include <cmath>
 
 constexpr int MIN_IMAGE = 15;
 
@@ -10,9 +12,14 @@ struct CameraCalib{
     cv::Mat D;
     bool disto_model_RadTan = true;
 
-    void initDefault(){
-        K = cv::Mat::eye(3, 3, CV_64FC1);
+    void print(std::string name) {
+        std::cout << name << " K:\n" << K << std::endl;
+        std::cout  << " D:\n" << D << std::endl;
+    }
 
+    void initDefault(bool radtan){
+        disto_model_RadTan = radtan;
+        K = cv::Mat::eye(3, 3, CV_64FC1);
         if (disto_model_RadTan) {
             // Radial and tangential distortion
             const int nb_coeff = 8; // 6 radial + 2 tangential; could be extended to 12 with prism distortion
@@ -21,7 +28,6 @@ struct CameraCalib{
             // Fisheye model has 4 coefficients: k1, k2, k3, k4
             D = cv::Mat::zeros(1, 4, CV_64FC1);
         }
-
     }
 
     void setFrom(sl::CameraParameters & cam) {
@@ -62,18 +68,18 @@ struct CameraCalib{
     double calibrate(const std::vector<std::vector<cv::Point3f>> &object_points, 
                         const std::vector<std::vector<cv::Point2f>> &image_points, 
                         const cv::Size &image_size, 
-                        int flags, cv::TermCriteria crit) {
+                        int flags) {
         double rms = 0.0;
-        cv::Mat rvec, tvec;
+        std::vector<cv::Mat> rvec, tvec;
         if (disto_model_RadTan){
             std::cout<<"D size "<<D.size()<<" "<<(D.cols == 8)<<" "<< (D.cols == 12)<<std::endl;
             if(D.cols == 8)
                 flags += cv::CALIB_RATIONAL_MODEL;
             else if (D.cols == 12)
                 flags += cv::CALIB_RATIONAL_MODEL + cv::CALIB_THIN_PRISM_MODEL;
-            rms = cv::calibrateCamera(object_points, image_points, image_size, K, D, rvec, tvec, flags, crit);
+            rms = cv::calibrateCamera(object_points, image_points, image_size, K, D, rvec, tvec, flags);
         } else
-            rms = cv::fisheye::calibrate(object_points, image_points, image_size, K, D, rvec, tvec, flags, crit);
+            rms = cv::fisheye::calibrate(object_points, image_points, image_size, K, D, rvec, tvec, flags + cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC + cv::fisheye::CALIB_FIX_SKEW);
         return rms;
     }
 };
@@ -84,10 +90,10 @@ struct StereoCalib{
     cv::Mat R; // Rotation matrix between left and right camera
     cv::Mat Rv; // Rotation vector between left and right camera
     cv::Mat T; // Translation vector between left and right camera
-
-    void initDefault(){
-        left.initDefault();
-        right.initDefault();
+    
+    void initDefault(bool radtan){
+        left.initDefault(radtan);
+        right.initDefault(radtan);
         R = cv::Mat::eye(3, 3, CV_64FC1);
         Rv = cv::Mat::zeros(3, 1, CV_64FC1);
         T = cv::Mat::zeros(3, 1, CV_64FC1);
@@ -114,18 +120,17 @@ struct StereoCalib{
                         const std::vector<std::vector<cv::Point2f>> &image_points_left, 
                         const std::vector<std::vector<cv::Point2f>> &image_points_right, 
                         const cv::Size &image_size, 
-                        int flags, cv::TermCriteria crit) {
+                        int flags) {
         double rms = 0.0;
-        cv::Mat E, F;
-            std::cout<<"D size "<<left.D.size()<<" vs "<<right.D.size()<<std::endl;
+        cv::Mat E, F;        
         if(left.disto_model_RadTan && right.disto_model_RadTan)
             rms = cv::stereoCalibrate(object_points, image_points_left, image_points_right, 
                                   left.K, left.D, right.K, right.D, image_size,
-                                  R, T, E, F, flags, crit);        
+                                  R, T, E, F, flags);
         else
             rms = cv::fisheye::stereoCalibrate(object_points, image_points_left, image_points_right, 
                                   left.K, left.D, right.K, right.D, image_size,
-                                  R, T, E, F, flags, crit);
+                                  R, T, E, F, flags+cv::fisheye::CALIB_CHECK_COND);
         cv::Rodrigues(R, Rv);
         return rms;
     }

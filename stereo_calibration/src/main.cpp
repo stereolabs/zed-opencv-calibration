@@ -7,7 +7,7 @@ namespace fs = std::filesystem;
 // https://docs.opencv.org/4.x/da/d0d/tutorial_camera_calibration_pattern.html
 constexpr int target_w = 9; // number of horizontal inner edges
 constexpr int target_h = 6; // number of vertical inner edges
-constexpr float square_size = 25.0; // mm
+constexpr float square_size = 24.0; // mm
 
 std::string folder = "zed-images/";
 
@@ -65,10 +65,9 @@ void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
     }
 }
 
-
 struct Args {
     std::string svo_path = "";
-    bool is_fisheye = false;
+    bool is_radtan_lens = true;
 
     void parse(int argc, char* argv[]) {
         for (int i = 1; i < argc; i++) {
@@ -76,7 +75,7 @@ struct Args {
             if (arg == "--svo" && i + 1 < argc) {
                 svo_path = argv[++i];
             } else if (arg == "--fisheye") {
-                is_fisheye = true;
+                is_radtan_lens = false;
             } else if (arg == "--help" || arg == "-h") {
                 std::cout << "Usage: " << argv[0] << " [options]\n";
                 std::cout << "  --svo <file>         Path to the SVO file\n";
@@ -119,30 +118,22 @@ int main(int argc, char *argv[]) {
         std::cerr << "Error opening ZED camera: " << sl::toString(status) << std::endl;
         return 1;
     }
-
+    
     // change can_use_calib_prior if you dont want to use the calibration file
     const bool can_use_calib_prior = status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
     bool need_intrinsic_estimation = !can_use_calib_prior;
 
     std::cout << "Using prior calibration: " << (can_use_calib_prior ? "Yes" : "No") << std::endl;
 
-    auto zed_info = zed_camera.getCameraInformation();
-    sl::Resolution camera_resolution = zed_info.camera_configuration.resolution;
-
     StereoCalib calib;
-    if (args.is_fisheye) {
-        std::cout << "Using fisheye model for calibration." << std::endl;
-        calib.left.disto_model_RadTan = false;
-        calib.right.disto_model_RadTan = false;
-    } else {
-        std::cout << "Using radial-tangential model for calibration." << std::endl;
-        calib.left.disto_model_RadTan = true;
-        calib.right.disto_model_RadTan = true;
-    }
+    calib.initDefault(args.is_radtan_lens);
 
-    calib.initDefault();
+    auto zed_info = zed_camera.getCameraInformation();
+
     if(can_use_calib_prior)
         calib.setFrom(zed_info.camera_configuration.calibration_parameters_raw);
+
+    sl::Resolution camera_resolution = zed_info.camera_configuration.resolution;
 
     sl::Mat zed_imageL(camera_resolution, sl::MAT_TYPE::U8_C4, sl::MEM::CPU);
     auto rgb_l = cv::Mat(camera_resolution.height, camera_resolution.width, CV_8UC4, zed_imageL.getPtr<sl::uchar1>());
@@ -168,7 +159,7 @@ int main(int argc, char *argv[]) {
             pts_obj_.push_back(cv::Point3f(square_size*j, square_size*i, 0));
         }
     }
-    
+
     // Check if the temp image folder exists and clear it
     if (fs::exists(folder)) {
         std::uintmax_t n{fs::remove_all(folder)};
@@ -182,7 +173,6 @@ int main(int argc, char *argv[]) {
     
     std::vector<std::vector<cv::Point2f>> pts_init_im_l, pts_init_im_r;
     std::vector<std::vector<cv::Point3f>> pts_init_obj;
-
 
     const cv::Size display_size(720, 404);
 
@@ -361,12 +351,13 @@ int main(int argc, char *argv[]) {
         }
         sl::sleep_ms(10); 
     }
-
+    
     int err = calibrate(folder, calib, target_w, target_h, square_size, zed_info.serial_number);
     if (err == 0) 
         std::cout << "CALIBRATION success" << std::endl;
-        else 
+    else 
         std::cout << "CALIBRATION fail" << std::endl;
+
     zed_camera.close();
 
     return 0;

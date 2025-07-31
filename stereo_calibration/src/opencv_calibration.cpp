@@ -67,16 +67,14 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         std::cout << " Please perform a new data acquisition." << std::endl << std::endl;
     } else {
         std::cout << " * Enough points detected" << std::endl;
-                
-        const auto crit = cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 150, 1e-7);
+    
+        auto flags = cv::CALIB_USE_INTRINSIC_GUESS;
+        auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize, flags);
+        auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize, flags);
+        std::cout << " * Reprojection error:\t Left "<<rms_l<<" Right "<<rms_r<< std::endl;
 
-        auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize, cv::CALIB_USE_INTRINSIC_GUESS, crit);
-        auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize, cv::CALIB_USE_INTRINSIC_GUESS, crit);
-
-        int flag = cv::CALIB_ZERO_DISPARITY + cv::CALIB_FIX_INTRINSIC;
-        auto err = calib_data.calibrate(object_points, pts_l, pts_r, imageSize, flag, crit);
-
-        std::cout << " * Reprojection error:\t Left "<<rms_l<<" Right "<<rms_r<<" Stereo " << err << std::endl;
+        auto err = calib_data.calibrate(object_points, pts_l, pts_r, imageSize, cv::CALIB_ZERO_DISPARITY + cv::CALIB_FIX_INTRINSIC);
+        std::cout << " * Reprojection error:\t Stereo " << err << std::endl;
 
         if(rms_l > 0.5f || rms_r > 0.5f || err > 0.5f)
             std::cout<<"\n\t !! Warning !!\n The reprojection error looks too high, check that the lens are clean (sharp images) and that the pattern is printed/mounted on a strong and flat surface."<<std::endl;
