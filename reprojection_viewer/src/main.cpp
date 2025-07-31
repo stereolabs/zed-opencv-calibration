@@ -33,6 +33,7 @@ using namespace sl;
 
 struct Args {
     std::string optional_settings_path = "";
+    std::string optional_opencv_calib = "";
     std::string svo_path = "";
 
     void parse(int argc, char* argv[]) {
@@ -42,11 +43,14 @@ struct Args {
                 optional_settings_path = argv[++i];
             } else if (arg == "--svo" && i + 1 < argc) {
                 svo_path = argv[++i];
+            } else if (arg == "--ocv" && i + 1 < argc) {
+                optional_settings_path = argv[++i];
             } else if (arg == "--help" || arg == "-h") {
                 std::cout << "Usage: " << argv[0] << " [options]\n";
-                std::cout << "  --calib_path <file>  Path to the optional calibration file\n";
-                std::cout << "  --svo <file>         Path to the SVO file\n";
-                std::cout << "  --help, -h          Show this help message\n";
+                std::cout << "  --calib_path <file>     Path to the optional calibration file\n";
+                std::cout << "  --svo <file>            Path to the SVO file\n";
+                std::cout << "  --ocv <file>            Path to an optional OpenCV calibration file\n";
+                std::cout << "  --help, -h              Show this help message\n";
                 exit(0);
             }
         }
@@ -217,7 +221,12 @@ int main(int argc, char **argv) {
 
     if (!args.optional_settings_path.empty()) {
         std::cout << "Using optional settings from: " << args.optional_settings_path << std::endl;
-        init_parameters.optional_opencv_calibration_file = sl::String(args.optional_settings_path.c_str());
+        init_parameters.optional_settings_path = sl::String(args.optional_settings_path.c_str());
+    }
+
+    if (!args.optional_opencv_calib.empty()) {
+        std::cout << "Using optional OpenCV calibration: " << args.optional_opencv_calib << std::endl;
+        init_parameters.optional_opencv_calibration_file = sl::String(args.optional_opencv_calib.c_str());
     }
 
     // Open the camera
@@ -241,7 +250,7 @@ int main(int argc, char **argv) {
     Mat image_rect(res, sl::MAT_TYPE::U8_C4, MEM::CPU);
     auto im_rect_ocv = slMat2cvMat(image_rect);
 
-    const bool fisheye = true;
+    const bool fisheye = true; // Set to true if using fisheye camera, false for non-fisheye
 
     auto stream = zed.getCUDAStream();
 
