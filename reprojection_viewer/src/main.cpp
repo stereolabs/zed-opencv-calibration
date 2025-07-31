@@ -76,7 +76,7 @@ cv::Mat cvtDisto(sl::CameraParameters &camera_param, bool fisheye) {
 
 cv::Mat cvtCameraParam(sl::CameraParameters &camera_param) {
     // Convert the ZED camera parameters to OpenCV format
-    cv::Mat camera_matrix(3, 3, CV_64F);
+    cv::Mat camera_matrix=cv::Mat::zeros(3, 3, CV_64F);
     camera_matrix.at<double>(0, 0) = camera_param.fx;
     camera_matrix.at<double>(1, 1) = camera_param.fy;
     camera_matrix.at<double>(0, 2) = camera_param.cx;
@@ -126,10 +126,11 @@ void reproDepth(cv::Mat &pc, cv::Mat &im, cv::Mat &disto, cv::Mat &camera_matrix
             }
         }
     }
+    
     world_points.shrink_to_fit();
 
-    cv::Scalar blue(0, 0, 255, 30);
-    cv::Scalar red(255, 0, 0, 30);
+    cv::Scalar blue(0, 0, 255, 250);
+    cv::Scalar red(255, 0, 0, 250);
 
     std::vector<cv::Point2f> image_points;
     // Undistort the point cloud using OpenCV
@@ -152,56 +153,47 @@ void reproDepth(cv::Mat &pc, cv::Mat &im, cv::Mat &disto, cv::Mat &camera_matrix
             scale = std::max(0.0f, std::min(1.0f, scale)); // Clamp to [0, 1]
             cv::Scalar color = blue * scale + red * (1.0f - scale); // Interpolate between blue and red
             
-
             auto &color_im = im.at<cv::Vec4b>(static_cast<int>(p.y), static_cast<int>(p.x));
 
             // fade the color based on depth
-            color_im = (color_im * 0.5 + cv::Vec4b(color[0], color[1], color[2], color[3]) * 0.5);
+            color_im = (color_im * 0.3 + cv::Vec4b(color[0], color[1], color[2], color[3]) * 0.7);
         }
         count++;
     }    
     cv::imshow("Projected Points", im);    
 }
 
-cv::Mat createMaskUsingUndistortPoints( int width, int height, cv::Mat& camera_matrix, cv::Mat& dist_coeffs, cv::Mat &new_camera_matrix) {
-    cv::Mat mask = cv::Mat::zeros(height, width, CV_8UC1);
+cv::Mat createMaskUsingUndistortPoints( int width, int height, cv::Mat& camera_matrix, cv::Mat& dist_coeffs, cv::Mat &new_camera_matrix, bool fisheye) {
+    // Create all pixel coordinates
+    std::vector<cv::Point2f> distorted_points;
 
-    try {
-        // Create all pixel coordinates
-        std::vector<cv::Point2f> distorted_points;
-        distorted_points.reserve(width * height);
-        
-        for (int y = 0; y < height; ++y) {
-            for (int x = 0; x < width; ++x) 
-                distorted_points.emplace_back(static_cast<float>(x), static_cast<float>(y));            
-        }
+    int rad = 0;
+    int x = rad, y = rad;
+    for (x = rad; x < (width - rad); ++x)
+            distorted_points.emplace_back(static_cast<float>(x), static_cast<float>(y));
 
-        // Undistort points to check validity
-        std::vector<cv::Point2f> undistorted_points;
+    for (y = rad; y < (height - rad); ++y)
+        distorted_points.emplace_back(static_cast<float>(x), static_cast<float>(y));
+
+    for (; x >= rad; --x)
+            distorted_points.emplace_back(static_cast<float>(x), static_cast<float>(y));
+
+    for (; y >= rad; --y)
+            distorted_points.emplace_back(static_cast<float>(x), static_cast<float>(y));
+
+    // Undistort points to check validity
+    std::vector<cv::Point2f> undistorted_points; // Initialize with the same size
+
+    if(fisheye)
         cv::fisheye::undistortPoints(distorted_points, undistorted_points, camera_matrix, dist_coeffs, cv::Mat(), new_camera_matrix);
+    else
+        cv::undistortPoints(distorted_points, undistorted_points, camera_matrix, dist_coeffs, cv::Mat(), new_camera_matrix);
 
-        // Collect valid undistorted points (inliers)
-        
-        for (const auto &pt : undistorted_points) {
-            if (pt.x >= 0 && pt.x < width && pt.y >= 0 && pt.y < height) {
-                mask.at<uchar>(static_cast<int>(pt.y), static_cast<int>(pt.x)) = 255; // Mark valid points as 0 (black)
-            }
-        }
-                    
-        // Apply morphological operations to smooth the mask
-        cv::Mat kernel = cv::getStructuringElement(cv::MORPH_ELLIPSE, cv::Size(11, 11));
-        cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, kernel);
-        cv::morphologyEx(mask, mask, cv::MORPH_OPEN, kernel);
+    cv::Mat mask = cv::Mat::zeros(height, width, CV_8UC1);
+    cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{std::vector<cv::Point>(undistorted_points.begin(), undistorted_points.end())}, cv::Scalar(255));
     
-    }
-    catch (const cv::Exception& e) {
-        std::cerr << "Error in undistortPoints: " << e.what() << std::endl;
-        mask = cv::Mat::zeros(height, width, CV_8UC1);
-    }
-
     return mask;
 }
-
 
 int main(int argc, char **argv) {
     Args args;
@@ -228,7 +220,6 @@ int main(int argc, char **argv) {
         init_parameters.optional_opencv_calibration_file = sl::String(args.optional_settings_path.c_str());
     }
 
-
     // Open the camera
     auto returned_state = zed.open(init_parameters);
     if (returned_state > ERROR_CODE::SUCCESS) {
@@ -244,10 +235,8 @@ int main(int argc, char **argv) {
     Mat point_cloud(res, sl::MAT_TYPE::F32_C4, MEM::BOTH);
     auto pc_ocv = slMat2cvMat(point_cloud);
     
-
     Mat image(res, sl::MAT_TYPE::U8_C4, MEM::CPU);
     auto im_ocv = slMat2cvMat(image);
-
 
     Mat image_rect(res, sl::MAT_TYPE::U8_C4, MEM::CPU);
     auto im_rect_ocv = slMat2cvMat(image_rect);
@@ -260,7 +249,7 @@ int main(int argc, char **argv) {
     auto disto = cvtDisto(camera_config.calibration_parameters_raw.left_cam, fisheye);
 
     auto K_new = cvtCameraParam(camera_config.calibration_parameters.left_cam);
-    auto mask_cv = createMaskUsingUndistortPoints(res.width, res.height, K, disto, K_new);
+    auto mask_cv = createMaskUsingUndistortPoints(res.width, res.height, K, disto, K_new, fisheye);
     
     // Convert cv::Mat mask to sl::Mat
     cv::imshow("Mask", mask_cv);
