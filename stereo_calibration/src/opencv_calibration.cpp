@@ -1,6 +1,6 @@
 #include "opencv_calibration.hpp"
 
-int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono){
+int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono, bool use_intrinsic_prior){
 
     std::vector<cv::Mat> left_images, right_images;
 
@@ -39,10 +39,12 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
     std::vector<std::vector < cv::Point3f>> object_points;
     std::vector<std::vector < cv::Point2f>> pts_l, pts_r;
 
+    cv::Size t_size(target_w, target_h);
+
     for (int i = 0; i < left_images.size(); i++) {
         std::vector<cv::Point2f> pts_l_, pts_r_;
-        bool found_l = cv::findChessboardCorners(left_images.at(i), cv::Size(target_w, target_h), pts_l_, 3);
-        bool found_r = cv::findChessboardCorners(right_images.at(i), cv::Size(target_w, target_h), pts_r_, 3);
+        bool found_l = cv::findChessboardCorners(left_images.at(i), t_size, pts_l_, 3);
+        bool found_r = cv::findChessboardCorners(right_images.at(i), t_size, pts_r_, 3);
 
         if (found_l && found_r) {
             cv::cornerSubPix(left_images.at(i), pts_l_, cv::Size(5, 5), cv::Size(-1, -1),
@@ -57,7 +59,7 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         } else {
             std::cout << "No target detected on image " << i << std::endl;
         }
-    }
+    }    
 
     /// Compute calibration
     std::cout << std::endl << "*** Calibration Report ***" << std::endl;
@@ -68,12 +70,12 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
     } else {
         std::cout << " * Enough points detected" << std::endl;
     
-        auto flags = cv::CALIB_USE_INTRINSIC_GUESS;
+        auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
         auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize, flags);
         auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize, flags);
         std::cout << " * Reprojection error:\t Left "<<rms_l<<" Right "<<rms_r<< std::endl;
 
-        auto err = calib_data.calibrate(object_points, pts_l, pts_r, imageSize, cv::CALIB_ZERO_DISPARITY + cv::CALIB_FIX_INTRINSIC);
+        auto err = calib_data.calibrate(object_points, pts_l, pts_r, imageSize, cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY);
         std::cout << " * Reprojection error:\t Stereo " << err << std::endl;
 
         if(rms_l > 0.5f || rms_r > 0.5f || err > 0.5f)

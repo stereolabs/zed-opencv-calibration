@@ -72,11 +72,8 @@ struct CameraCalib{
         double rms = 0.0;
         std::vector<cv::Mat> rvec, tvec;
         if (disto_model_RadTan){
-            std::cout<<"D size "<<D.size()<<" "<<(D.cols == 8)<<" "<< (D.cols == 12)<<std::endl;
-            if(D.cols == 8)
+            if(D.cols >= 8)
                 flags += cv::CALIB_RATIONAL_MODEL;
-            else if (D.cols == 12)
-                flags += cv::CALIB_RATIONAL_MODEL + cv::CALIB_THIN_PRISM_MODEL;
             rms = cv::calibrateCamera(object_points, image_points, image_size, K, D, rvec, tvec, flags);
         } else
             rms = cv::fisheye::calibrate(object_points, image_points, image_size, K, D, rvec, tvec, flags + cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC + cv::fisheye::CALIB_FIX_SKEW);
@@ -136,4 +133,4 @@ struct StereoCalib{
     }
 };
 
-int calibrate(const std::string& folder, StereoCalib &raw_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono = false);
+int calibrate(const std::string& folder, StereoCalib &raw_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono = false, bool use_intrinsic_prior = false);

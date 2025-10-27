@@ -88,6 +88,7 @@ struct Args {
 
 
 int main(int argc, char *argv[]) {
+
     Args args;
     args.parse(argc, argv);
 
@@ -107,14 +108,17 @@ int main(int argc, char *argv[]) {
     init_params.enable_image_validity_check = false; // Disable image validity check for performance
     init_params.camera_disable_self_calib = true;
 
-    /* Setup virtual stereo camera from two ZED One cameras
-    init_params.input.setVirtualStereoFromSerialNumbers(302045219, 306208880, 666);
-    */
+    if(0){ // Setup virtual stereo camera from two ZED One cameras
+        const int sn_left = 300000001;
+        const int sn_right = 300000002;
+        int sn_stereo = sl::generateVirtualStereoSerialNumber(sn_left, sn_right);
+        init_params.input.setVirtualStereoFromSerialNumbers(sn_left, sn_right, sn_stereo);
+    }
 
     auto status = zed_camera.open(init_params);
 
     // in case of a virtual stereo camera, the calibration file can be not available
-    if(status != sl::ERROR_CODE::SUCCESS && status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE) {
+    if(status > sl::ERROR_CODE::SUCCESS && status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE) {
         std::cerr << "Error opening ZED camera: " << sl::toString(status) << std::endl;
         return 1;
     }
@@ -148,7 +152,6 @@ int main(int argc, char *argv[]) {
     cv::Mat blank = cv::Mat::zeros(camera_resolution.height, camera_resolution.width, CV_8UC1);
 
     cv::Mat rgb_d, rgb2_d, rgb_d_fill, display, rendering_image;
-
 
     extrinsic_checker checker;
     float cov_left = 100;
@@ -185,6 +188,7 @@ int main(int argc, char *argv[]) {
     const std::string window_name = "ZED Calibration";
     cv::namedWindow(window_name, cv::WINDOW_NORMAL);
     cv::resizeWindow(window_name, 1280, 960); // Set a larger window size
+    
     while (key != 'q' && key != 27) {
 
         if (zed_camera.grab() == sl::ERROR_CODE::SUCCESS) {
@@ -352,8 +356,7 @@ int main(int argc, char *argv[]) {
         }
         sl::sleep_ms(10); 
     }
-    
-    int err = calibrate(folder, calib, target_w, target_h, square_size, zed_info.serial_number);
+    int err = calibrate(folder, calib, target_w, target_h, square_size, zed_info.serial_number, false, can_use_calib_prior);
     if (err == 0) 
         std::cout << "CALIBRATION success" << std::endl;
     else 
