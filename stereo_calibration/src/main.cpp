@@ -68,6 +68,7 @@ void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
 struct Args {
     std::string svo_path = "";
     bool is_radtan_lens = true;
+    bool is_zed_x_one_virtual_stereo = false;
 
     void parse(int argc, char* argv[]) {
         for (int i = 1; i < argc; i++) {
@@ -76,11 +77,16 @@ struct Args {
                 svo_path = argv[++i];
             } else if (arg == "--fisheye") {
                 is_radtan_lens = false;
+            } else if (arg == "--zed-x-one") {
+              is_zed_x_one_virtual_stereo = true;
             } else if (arg == "--help" || arg == "-h") {
-                std::cout << "Usage: " << argv[0] << " [options]\n";
-                std::cout << "  --svo <file>         Path to the SVO file\n";
-                std::cout << "  --help, -h          Show this help message\n";
-                exit(0);
+              std::cout << "Usage: " << argv[0] << " [options]\n";
+              std::cout << "  --svo <file>         Path to the SVO file\n";
+              std::cout << "  --fisheye            Use fisheye lens model\n";
+              std::cout << "  --zed-x-one          Use ZED X One cameras as a "
+                           "virtual stereo pair\n";
+              std::cout << "  --help, -h           Show this help message\n";
+              exit(0);
             }
         }
     }
@@ -91,8 +97,6 @@ int main(int argc, char *argv[]) {
 
     Args args;
     args.parse(argc, argv);
-
-    setenv("ZED_SDK_ALLOW_UNCALIBRATED_MODE", "1", 1);
 
     std::cout << std::endl;
     std::cout << "The calibration process requires a checkerboard of known characteristics." << std::endl;
@@ -108,11 +112,14 @@ int main(int argc, char *argv[]) {
     init_params.enable_image_validity_check = false; // Disable image validity check for performance
     init_params.camera_disable_self_calib = true;
 
-    if(0){ // Setup virtual stereo camera from two ZED One cameras
-        const int sn_left = 300000001;
-        const int sn_right = 300000002;
-        int sn_stereo = sl::generateVirtualStereoSerialNumber(sn_left, sn_right);
-        init_params.input.setVirtualStereoFromSerialNumbers(sn_left, sn_right, sn_stereo);
+    if (args.is_zed_x_one_virtual_stereo) { // Setup virtual stereo camera from
+                                            // two ZED One cameras
+      // Use this method if you know the serial numbers of the left and right
+      // cameras
+      //   init_params.input.setVirtualStereoFromSerialNumbers(sn_left,
+      //   sn_right, sn_stereo);
+      const int sn_stereo = 110000000;
+      init_params.input.setVirtualStereoFromCameraIDs(0, 1, sn_stereo);
     }
 
     auto status = zed_camera.open(init_params);
@@ -456,24 +463,28 @@ bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z, float d
 }
 
 bool CheckBucket(int min_h, int max_h, int min_w, int max_w, bool min, std::vector<std::vector<cv::Point2f>> pts) {
-    int compteur = 0;
+  int count = 0;
 
-    for (int i = 0; i < pts.size(); i++) {
-        for (int j = 0; j < pts.at(i).size(); j++) {
-            if ((pts.at(i).at(j).x < max_w)&&(pts.at(i).at(j).x > min_w)) {
-                if ((pts.at(i).at(j).y < max_h)&&(pts.at(i).at(j).y > min_h)) {
-                    compteur = compteur + 1;
-                }
-            }
+  for (int i = 0; i < pts.size(); i++) {
+    for (int j = 0; j < pts.at(i).size(); j++) {
+      if ((pts.at(i).at(j).x < max_w) && (pts.at(i).at(j).x > min_w)) {
+        if ((pts.at(i).at(j).y < max_h) && (pts.at(i).at(j).y > min_h)) {
+          count++;
         }
+      }
     }
+  }
 
     if (min) {
-        if (compteur > MinPts) return true;
-        else return false;
+      if (count > MinPts)
+        return true;
+      else
+        return false;
     } else {
-        if (compteur < MaxPts) return true;
-        else return false;
+      if (count < MaxPts)
+        return true;
+      else
+        return false;
     }
 
 }

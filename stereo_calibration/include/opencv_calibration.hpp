@@ -125,9 +125,10 @@ struct StereoCalib{
                                   left.K, left.D, right.K, right.D, image_size,
                                   R, T, E, F, flags);
         else
-            rms = cv::fisheye::stereoCalibrate(object_points, image_points_left, image_points_right, 
-                                  left.K, left.D, right.K, right.D, image_size,
-                                  R, T, E, F, flags+cv::fisheye::CALIB_CHECK_COND);
+          rms = cv::fisheye::stereoCalibrate(
+              object_points, image_points_left, image_points_right, left.K,
+              left.D, right.K, right.D, image_size, R, T,
+              flags + cv::fisheye::CALIB_CHECK_COND);
         cv::Rodrigues(R, Rv);
         return rms;
     }

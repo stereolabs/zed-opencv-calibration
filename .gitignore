@@ -1,5 +1,6 @@
 ### C++ ###
 build
+.cache
 
 # Prerequisites
 *.d
