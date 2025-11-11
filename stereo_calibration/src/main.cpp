@@ -49,6 +49,7 @@ const float min_rotation = 60; // in degrees
 const float acceptable_rotation = 50; // in degrees
 const float min_distance = 300; // in mm
 const float acceptable_distance = 200; // in mm
+const float max_repr_error = 0.5f; // in pixels
 
 std::vector<std::vector<cv::Point2f>> pts_detected;
 
@@ -251,6 +252,7 @@ int main(int argc, char *argv[]) {
     extrinsic_checker checker;
     float cov_left = 1.0f;
     bool angle_clb = false;
+    bool acquisition_completed = false;
     std::vector<cv::Point3f> pts_obj_;
     for (int i = 0; i < target_h; i++) {
         for (int j = 0; j < target_w; j++) {
@@ -294,80 +296,95 @@ int main(int argc, char *argv[]) {
             cv::resize(rgb_l, rgb_d, display_size);
             cv::resize(rgb_r, rgb2_d, display_size);
 
-            if (!angle_clb) {
-                cv::Mat rgb_with_lack_of_pts;
-                std::vector<cv::Mat> channels;
-                cv::split(rgb_l, channels);
-                blank.setTo(0);
-                float x_end,y_end;
-                float x_max = 0;
-                for (int i = 0; i < square_valid.size(); i++) {
-                    if(square_valid.at(i).x + bucketsize > blank.size[1])
-                        x_end = blank.size[1];
-                    else
-                        x_end = square_valid.at(i).x + bucketsize;
-                    if(square_valid.at(i).y + bucketsize > blank.size[0])
-                        y_end = blank.size[0];
-                    else
-                        y_end = square_valid.at(i).y + bucketsize;
-                    if(square_valid.at(i).x>x_max)
-                        x_max = square_valid.at(i).x;
-                    cv::rectangle(blank, square_valid.at(i), cv::Point(x_end, y_end), cv::Scalar(128, 0, 128), -1);
+                if (!angle_clb) {
+                    cv::Mat rgb_with_lack_of_pts;
+                    std::vector<cv::Mat> channels;
+                    cv::split(rgb_l, channels);
+                    blank.setTo(0);
+                    float x_end,y_end;
+                    float x_max = 0;
+                    for (int i = 0; i < square_valid.size(); i++) {
+                        if(square_valid.at(i).x + bucketsize > blank.size[1])
+                            x_end = blank.size[1];
+                        else
+                            x_end = square_valid.at(i).x + bucketsize;
+                        if(square_valid.at(i).y + bucketsize > blank.size[0])
+                            y_end = blank.size[0];
+                        else
+                            y_end = square_valid.at(i).y + bucketsize;
+                        if(square_valid.at(i).x>x_max)
+                            x_max = square_valid.at(i).x;
+                        cv::rectangle(blank, square_valid.at(i), cv::Point(x_end, y_end), cv::Scalar(128, 0, 128), -1);
+                    }
+                    channels[0] = channels[0] - blank;
+                    channels[2] = channels[2] - blank;
+                    cv::merge(channels, rgb_with_lack_of_pts);
+                    cv::resize(rgb_with_lack_of_pts, rgb_d_fill, display_size);
+                } else {
+                    cv::resize(rgb_l, rgb_d_fill, display_size);
                 }
-                channels[0] = channels[0] - blank;
-                channels[2] = channels[2] - blank;
-                cv::merge(channels, rgb_with_lack_of_pts);
-                cv::resize(rgb_with_lack_of_pts, rgb_d_fill, display_size);
+
+                std::vector<cv::Point2f> pts;
+                bool found = cv::findChessboardCorners(rgb_d, cv::Size(target_w, target_h), pts, 3);
+                drawChessboardCorners(rgb_d_fill, cv::Size(target_w, target_h), cv::Mat(pts), found);
+
+                if(image_stack_horizontal)
+                    cv::hconcat(rgb_d_fill, rgb2_d, display);
+                else
+                    cv::vconcat(rgb_d_fill, rgb2_d, display);
+
+                cv::Mat text_info = cv::Mat::ones(cv::Size(display.size[1], 200), display.type());
+
+                if (angle_clb) {
+                    coverage_mode = false;
+                    bool ready_to_calibrate = writeRotText(text_info, checker.rot_x_delta, checker.rot_y_delta, checker.rot_z_delta, checker.distance_tot, 1);
+                    if(ready_to_calibrate) {
+                        if(image_count >= MIN_IMAGE) {
+                            acquisition_completed = true;
+                        } else {
+                            std::stringstream ss;
+                            ss << "Not enough images for calibration. Missing " << (MIN_IMAGE - image_count) << " images.";
+                            cv::putText(text_info, ss.str(),
+                                        cv::Point(10, display.size[0] + 140),
+                                        cv::FONT_HERSHEY_SIMPLEX, 0.8,
+                                        warn_color, 2);
+                        }
+                    }
+                }
+
+                cv::vconcat(display, text_info, rendering_image);
+
+                std::stringstream ss;
+                ss << std::fixed << std::setprecision(2) << square_size;
+
+            if (acquisition_completed) {
+                cv::putText(rendering_image, "Acquisition completed! Wait for the calibration computation...", 
+                    cv::Point(10, display.size[0]+50), cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
             } else {
-                cv::resize(rgb_l, rgb_d_fill, display_size);
-            }
+                if (missing_right_target_on_last_pic) 
+                    cv::putText(rendering_image, "Missing target on image right", cv::Point(10, display.size[0]+140), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
+                if (missing_left_target_on_last_pic)
+                    cv::putText(rendering_image, "Missing target on image left", cv::Point(10, display.size[0]+110), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
 
-            std::vector<cv::Point2f> pts;
-            bool found = cv::findChessboardCorners(rgb_d, cv::Size(target_w, target_h), pts, 3);
-            drawChessboardCorners(rgb_d_fill, cv::Size(target_w, target_h), cv::Mat(pts), found);
-
-            if(image_stack_horizontal)
-                cv::hconcat(rgb_d_fill, rgb2_d, display);
-            else
-                cv::vconcat(rgb_d_fill, rgb2_d, display);
-
-            cv::Mat text_info = cv::Mat::ones(cv::Size(display.size[1], 200), display.type());
-
-            if (angle_clb) {
-                coverage_mode = false;
-                bool ready_to_calibrate = writeRotText(text_info, checker.rot_x_delta, checker.rot_y_delta, checker.rot_z_delta, checker.distance_tot, 1);
-                if(ready_to_calibrate) {
-                    if(image_count >= MIN_IMAGE)                        
-                        break;
-                    else
-                        cv::putText(text_info, "Not enough images for calibration", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
+                cv::putText(rendering_image, "Press 's' to save the current frames", cv::Point(10, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
+                if(coverage_mode) {
+                    std::stringstream ss_cov;
+                    ss_cov << "Coverage: " << std::fixed << std::setprecision(2) << (1-cov_left)*100 << "%/" << min_coverage << "%";
+                    cv::putText(rendering_image, ss_cov.str(), cv::Point(10, display.size[0]+55), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
+                    cv::putText(rendering_image, "Keep going until the green covers the image, it represents coverage", cv::Point(10, display.size[0]+85), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
                 }
+                if(!frames_rot_good)
+                    cv::putText(rendering_image, "!!! Do not rotate the checkerboard more than 45 deg around Z !!!", 
+                        cv::Point(600, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
             }
-
-            cv::vconcat(display, text_info, rendering_image);
-
-            std::stringstream ss;
-            ss << std::fixed << std::setprecision(2) << square_size;
-            
-            if(missing_right_target_on_last_pic)
-                cv::putText(rendering_image, "Missing target on image right", cv::Point(10, display.size[0]+140), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
-            if(missing_left_target_on_last_pic)
-                cv::putText(rendering_image, "Missing target on image left", cv::Point(10, display.size[0]+110), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
-
-            cv::putText(rendering_image, "Press 's' to save the current frames", cv::Point(10, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
-            if(coverage_mode) {
-                std::stringstream ss_cov;
-                ss_cov << "Coverage: " << std::fixed << std::setprecision(2) << (1-cov_left)*100 << "%/" << min_coverage << "%";
-                cv::putText(rendering_image, ss_cov.str(), cv::Point(10, display.size[0]+55), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
-                cv::putText(rendering_image, "Keep going until the green covers the image, it represents coverage", cv::Point(10, display.size[0]+85), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
-            }
-            if(!frames_rot_good)
-                cv::putText(rendering_image, "!!! Do not rotate the checkerboard more than 45 deg around Z !!!", 
-                    cv::Point(600, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
                         
             cv::imshow(window_name, rendering_image);
             key = cv::waitKey(10);
 
+            if (acquisition_completed) {
+                break;
+            }
+            
             if ((key == 's' || key == 'S')) {
                 if (!angle_clb) coverage_mode = true;
                 std::vector<cv::Point2f> pts_l, pts_r;
@@ -453,16 +470,17 @@ int main(int argc, char *argv[]) {
                     image_count++;
                 }
             }
-        }
+            }
         sl::sleep_ms(10); 
     }
 
     // Add "Calibration in progress" message
-    int err = calibrate(folder, calib, target_w, target_h, square_size, zed_info.serial_number, false, can_use_calib_prior);
+    int err = calibrate(folder, calib, target_w, target_h, square_size, 
+        zed_info.serial_number, false, can_use_calib_prior, max_repr_error);
     if (err == EXIT_SUCCESS) 
         std::cout << "CALIBRATION success" << std::endl;
     else 
-        std::cout << "CALIBRATION fail" << std::endl;
+        std::cout << "CALIBRATION failed" << std::endl;
 
     zed_camera.close();
 
@@ -550,9 +568,6 @@ bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z, float d
     cv::putText(image, text2, cv::Point(x + textSize.width / 4, y), cv::FONT_HERSHEY_SIMPLEX, fontSize, color2, 2);
     cv::putText(image, text3, cv::Point(x + textSize.width / 2, y), cv::FONT_HERSHEY_SIMPLEX, fontSize, color3, 2);
     cv::putText(image, text4, cv::Point(x + 3 * textSize.width / 4, y), cv::FONT_HERSHEY_SIMPLEX, fontSize, color4, 2);
-
-    if(status)
-        cv::putText(image, "Ready to calibrate...", cv::Point(10, y-40), cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
 
     return status;
 }

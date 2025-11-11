@@ -6,7 +6,7 @@
 #include <numeric>
 #include <cmath>
 
-constexpr int MIN_IMAGE = 15;
+constexpr int MIN_IMAGE = 20;
 
 struct CameraCalib{
     cv::Mat K;
@@ -46,7 +46,7 @@ struct CameraCalib{
             D.at<double>(0) = cam.disto[0];
             D.at<double>(1) = cam.disto[1];
             D.at<double>(2) = cam.disto[4];
-            D.at<double>(3) = cam.disto[5];            
+            D.at<double>(3) = cam.disto[5];
         } else {
             disto_model_RadTan = true; // Radial and tangential distortion
             const int nb_coeff = 8; // 6 radial + 2 tangential; could be extended to 12 with prism distortion

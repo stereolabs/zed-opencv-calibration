@@ -94,14 +94,22 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         
         std::cout << std::endl;
 
-        std::cout << " ** Camera parameters **" << std::endl;
-        std::cout << "  * Intrinsic mat left:\t" << calib_data.left.K << std::endl;
-        std::cout << "  * Distortion mat left:\t" << calib_data.left.D << std::endl;
-        std::cout << "  * Intrinsic mat right:\t" << calib_data.right.K << std::endl;
-        std::cout << "  * Distortion mat right:\t" << calib_data.right.D << std::endl;
-        std::cout << " ** Extrinsic parameters **" << std::endl;
-        std::cout << "  * Translation:\t" << calib_data.T << std::endl;
-        std::cout << "  * Rotation:\t" << calib_data.Rv << std::endl;
+        std::cout << "** Camera parameters **" << std::endl;
+        std::cout << "* Intrinsic mat left:" << std::endl
+                  << calib_data.left.K << std::endl;
+        std::cout << "* Distortion mat left:" << std::endl
+                  << calib_data.left.D << std::endl;
+        std::cout << "* Intrinsic mat right:" << std::endl
+                  << calib_data.right.K << std::endl;
+        std::cout << "* Distortion mat right:" << std::endl
+                  << calib_data.right.D << std::endl;
+        std::cout << std::endl;
+        std::cout << "** Extrinsic parameters **" << std::endl;
+        std::cout << "* Translation:" << std::endl
+                  << calib_data.T << std::endl;
+        std::cout << "* Rotation:" << std::endl
+                  << calib_data.Rv << std::endl;
+        std::cout << std::endl;
 
         std::cout << std::endl << "*** Calibration file ***" << std::endl;        
         std::string calib_filename = "zed_calibration_" + std::to_string(serial) + ".yml";
