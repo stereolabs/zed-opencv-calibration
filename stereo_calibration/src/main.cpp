@@ -3,11 +3,18 @@
 
 namespace fs = std::filesystem;
 
+// *********************************************************************************
 // CHANGE THIS PARAM BASED ON THE CHECKERBOARD USED
-// https://docs.opencv.org/4.x/da/d0d/tutorial_camera_calibration_pattern.html
-constexpr int target_w = 9; // number of horizontal inner edges
-constexpr int target_h = 6; // number of vertical inner edges
-constexpr float square_size = 24.0; // mm
+// Learn more:
+// * https://docs.opencv.org/4.x/da/d0d/tutorial_camera_calibration_pattern.html
+
+constexpr int target_w = 9;             // number of horizontal inner edges
+constexpr int target_h = 6;             // number of vertical inner edges
+constexpr float square_size = 24.0f;    // mm
+
+// Default parameters are good for this checkerboard:
+// https://github.com/opencv/opencv/blob/4.x/doc/pattern.png//
+// *********************************************************************************
 
 std::string folder = "zed-images/";
 
@@ -36,7 +43,7 @@ float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts, const cv::
 bool updateRT(extrinsic_checker& checker_, cv::Mat r, cv::Mat t);
 
 /// Calibration condition
-const float min_coverage = 10; // in percentage
+const float min_coverage = 65; // in percentage
 const float min_rotation = 60; // in degrees
 const float acceptable_rotation = 50; // in degrees
 const float min_distance = 200; // in mm
@@ -53,7 +60,6 @@ const cv::Scalar warn_color = cv::Scalar(0, 128, 255);
 
 const bool image_stack_horizontal = true; // true for horizontal, false for vertical
 
-
 void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
 
     float rx = out.width / static_cast<float>(in.width);
@@ -66,30 +72,70 @@ void scaleKP(std::vector<cv::Point2f> &pts, cv::Size in, cv::Size out){
 }
 
 struct Args {
-    std::string svo_path = "";
-    bool is_radtan_lens = true;
-    bool is_zed_x_one_virtual_stereo = false;
+  std::string app_name;
+  std::string svo_path = "";
+  bool is_radtan_lens = true;
+  bool is_zed_x_one_virtual_stereo = false;
+  bool is_zed_sdk_format = false;
+  int left_camera_id = -1;
+  int right_camera_id = -1;
+  int left_camera_sn = -1;
+  int right_camera_sn = -1;
 
-    void parse(int argc, char* argv[]) {
-        for (int i = 1; i < argc; i++) {
-            std::string arg = argv[i];
-            if (arg == "--svo" && i + 1 < argc) {
-                svo_path = argv[++i];
-            } else if (arg == "--fisheye") {
-                is_radtan_lens = false;
-            } else if (arg == "--zed-x-one") {
-              is_zed_x_one_virtual_stereo = true;
-            } else if (arg == "--help" || arg == "-h") {
-              std::cout << "Usage: " << argv[0] << " [options]\n";
-              std::cout << "  --svo <file>         Path to the SVO file\n";
-              std::cout << "  --fisheye            Use fisheye lens model\n";
-              std::cout << "  --zed-x-one          Use ZED X One cameras as a "
-                           "virtual stereo pair\n";
-              std::cout << "  --help, -h           Show this help message\n";
-              exit(0);
-            }
-        }
+  void parse(int argc, char* argv[]) {
+    app_name = argv[0];
+    for (int i = 1; i < argc; i++) {
+      std::string arg = argv[i];
+      if (arg == "--svo" && i + 1 < argc) {
+        svo_path = argv[++i];
+      } else if (arg == "--fisheye") {
+        is_radtan_lens = false;
+      } else if (arg == "--zedxone") {
+        is_zed_x_one_virtual_stereo = true;
+      } else if (arg == "--zed_sdk_format") {
+        is_zed_sdk_format = true;
+      } else if (arg == "--left_id" && i + 1 < argc) {
+        left_camera_id = std::stoi(argv[++i]);
+      } else if (arg == "--right_id" && i + 1 < argc) {
+        right_camera_id = std::stoi(argv[++i]);
+      } else if (arg == "--left_sn" && i + 1 < argc) {
+        left_camera_sn = std::stoi(argv[++i]);
+      } else if (arg == "--right_sn" && i + 1 < argc) {
+        right_camera_sn = std::stoi(argv[++i]);
+      } else if (arg == "--help" || arg == "-h") {
+        std::cout << "Usage: " << argv[0] << " [options]" << std::endl;
+        std::cout << "  --svo <file>      Path to the SVO file" << std::endl;
+        std::cout << "  --fisheye         Use fisheye lens model" << std::endl;
+        std::cout << "  --zedxone         Use ZED X One cameras as a virtual "
+                     "stereo pair" << std::endl;
+        std::cout << "  --left_id <id>    Id of the left camera if using "
+                     "virtual stereo" << std::endl;
+        std::cout << "  --right_id <id>   Id of the right camera if using "
+                     "virtual stereo" << std::endl;
+        std::cout << "  --left_sn <sn>    S/N of the left camera if using "
+                     "virtual stereo" << std::endl;
+        std::cout << "  --right_sn <sn>   S/N of the right camera if using "
+                     "virtual stereo" << std::endl;
+        std::cout << "  --zed_sdk_format  Save calibration file in "
+                     "ZED SDK format" << std::endl;
+        std::cout << "  --help, -h        Show this help message" << std::endl
+                  << std::endl;
+        std::cout << "Examples:" << std::endl;
+        std::cout << "* ZED Stereo Camera using an SVO file:" << std::endl;
+        std::cout << "  " << argv[0] << " --svo camera.svo" << std::endl;
+        std::cout << "* Virtual Stereo Camera using camera IDs:" << std::endl;
+        std::cout << "  " << argv[0] << " --zedxone --left_id 0 --right_id 1"
+                  << std::endl;
+        std::cout << "* Virtual Stereo Camera with fisheye lenses using camera "
+                     "serial numbers:" << std::endl;
+        std::cout << "  " << argv[0] 
+                  << " --fisheye --zedxone --left_sn 301528071 --right_sn 300473441"
+            << std::endl;
+        std::cout << std::endl;
+        exit(0);
+      }
     }
+  }
 };
 
 
@@ -107,19 +153,60 @@ int main(int argc, char *argv[]) {
     sl::Camera zed_camera;
     sl::InitParameters init_params;
     init_params.depth_mode = sl::DEPTH_MODE::NONE; // No depth required for calibration
-    init_params.camera_resolution = sl::RESOLUTION::AUTO; // Use the camera's native resolution
-    init_params.camera_fps = 30; // Set the camera FPS
+    init_params.camera_resolution = sl::RESOLUTION::HD1080; // Use the camera's native resolution
+    init_params.camera_fps = 15; // Set the camera FPS
     init_params.enable_image_validity_check = false; // Disable image validity check for performance
     init_params.camera_disable_self_calib = true;
 
-    if (args.is_zed_x_one_virtual_stereo) { // Setup virtual stereo camera from
-                                            // two ZED One cameras
-      // Use this method if you know the serial numbers of the left and right
-      // cameras
-      //   init_params.input.setVirtualStereoFromSerialNumbers(sn_left,
-      //   sn_right, sn_stereo);
-      const int sn_stereo = 110000000;
-      init_params.input.setVirtualStereoFromCameraIDs(0, 1, sn_stereo);
+    // Configure the Virtual Stereo Camera if '--zedxone' argument is provided
+    if (args.is_zed_x_one_virtual_stereo) {
+      if(args.left_camera_sn != -1 && args.right_camera_sn != -1) {
+        std::cout << "Using serial numbers for left and right cameras: "
+                  << args.left_camera_sn << ", " << args.right_camera_sn
+                  << std::endl;
+    
+        int sn_stereo = sl::generateVirtualStereoSerialNumber( args.left_camera_sn, args.right_camera_sn);
+        std::cout << "Virtual SN: " << sn_stereo << std::endl;
+        init_params.input.setVirtualStereoFromSerialNumbers( args.left_camera_sn, args.right_camera_sn, sn_stereo);
+      } else {
+        if(args.left_camera_id == -1 || args.right_camera_id == -1) {
+            std::cerr << "Error: Left and Right camera IDs or Left and Right camera Serial Numbers must be both provided."
+                        << std::endl;
+            std::cerr << " * use the command "<< args.app_name << " -h' for details." << std::endl;
+            return 1;
+
+        }
+        
+        std::cout << "Using camera IDs for left and right cameras: "
+                  << args.left_camera_id << ", " << args.right_camera_id
+                  << std::endl;
+
+        auto cams = sl::CameraOne::getDeviceList();
+        int sn_left = -1;
+        int sn_right = -1;
+
+        for(auto &cam : cams) {
+            if(cam.id == args.left_camera_id) {
+                sn_left = cam.serial_number;
+            } else if(cam.id == args.right_camera_id) {
+                sn_right = cam.serial_number;
+            }
+        }
+
+        if(sn_left == -1 || sn_right == -1) {
+            std::cerr << "Error: Could not find serial numbers for the provided camera IDs."
+                        << std::endl;
+            std::cerr << " * use the command 'ZED_Explore --all' to get the camera ID or the Serial Number of the connected cameras."
+                        << std::endl;
+            return 1;
+        }
+
+        int sn_stereo = sl::generateVirtualStereoSerialNumber(sn_left, sn_right);
+        std::cout << "Virtual Stereo SN: " << sn_stereo << std::endl;
+
+        init_params.input.setVirtualStereoFromCameraIDs(args.left_camera_id,
+                                                        args.right_camera_id,sn_stereo);
+        }
     }
 
     auto status = zed_camera.open(init_params);
@@ -311,8 +398,8 @@ int main(int argc, char *argv[]) {
                         if (!angle_clb) {
                             pts_detected.push_back(pts_l);
                             cov_left = CheckCoverage(pts_detected, cv::Size(camera_resolution.width, camera_resolution.height));
-                            std::cout << "coverage : " << (1-cov_left)*100 << "%" << std::endl;
-                            if (cov_left < 0.1) {
+                            std::cout << "Coverage : " << (1-cov_left)*100 << "%/" << (100-min_coverage) << "%" << std::endl;
+                            if (cov_left < ((100-min_coverage)/100.0f)) {
                                 cv::Mat rvec(1, 3, CV_64FC1);
                                 cv::Mat tvec(1, 3, CV_64FC1);
                                 
@@ -364,7 +451,7 @@ int main(int argc, char *argv[]) {
         sl::sleep_ms(10); 
     }
     int err = calibrate(folder, calib, target_w, target_h, square_size, zed_info.serial_number, false, can_use_calib_prior);
-    if (err == 0) 
+    if (err == EXIT_SUCCESS) 
         std::cout << "CALIBRATION success" << std::endl;
     else 
         std::cout << "CALIBRATION fail" << std::endl;

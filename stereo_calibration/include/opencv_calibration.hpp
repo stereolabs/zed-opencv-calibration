@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sl/Camera.hpp>
+#include <sl/CameraOne.hpp>
 #include <opencv2/opencv.hpp>
 #include <numeric>
 #include <cmath>

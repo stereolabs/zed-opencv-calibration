@@ -67,6 +67,7 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
     if (pts_l.size() < MIN_IMAGE) {
         std::cout << " !!! Not enough images with the target detected !!!" << std::endl;
         std::cout << " Please perform a new data acquisition." << std::endl << std::endl;
+        return EXIT_FAILURE;
     } else {
         std::cout << " * Enough points detected" << std::endl;
     
