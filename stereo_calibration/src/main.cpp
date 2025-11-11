@@ -1,5 +1,6 @@
 #include "opencv_calibration.hpp"
 #include <filesystem>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -46,8 +47,8 @@ bool updateRT(extrinsic_checker& checker_, cv::Mat r, cv::Mat t);
 const float min_coverage = 65; // in percentage
 const float min_rotation = 60; // in degrees
 const float acceptable_rotation = 50; // in degrees
-const float min_distance = 200; // in mm
-const float acceptable_distance = 150; // in mm
+const float min_distance = 300; // in mm
+const float acceptable_distance = 200; // in mm
 
 std::vector<std::vector<cv::Point2f>> pts_detected;
 
@@ -248,7 +249,7 @@ int main(int argc, char *argv[]) {
     cv::Mat rgb_d, rgb2_d, rgb_d_fill, display, rendering_image;
 
     extrinsic_checker checker;
-    float cov_left = 100;
+    float cov_left = 1.0f;
     bool angle_clb = false;
     std::vector<cv::Point3f> pts_obj_;
     for (int i = 0; i < target_h; i++) {
@@ -260,6 +261,7 @@ int main(int argc, char *argv[]) {
     // Check if the temp image folder exists and clear it
     if (fs::exists(folder)) {
         std::uintmax_t n{fs::remove_all(folder)};
+        std::cout << " * Removed " << n << " temporary files or directories from previous calibration." << std::endl;
     }
     // Create the temp image folder
     if(!fs::create_directories(folder)) 
@@ -335,7 +337,7 @@ int main(int argc, char *argv[]) {
                 coverage_mode = false;
                 bool ready_to_calibrate = writeRotText(text_info, checker.rot_x_delta, checker.rot_y_delta, checker.rot_z_delta, checker.distance_tot, 1);
                 if(ready_to_calibrate) {
-                    if(image_count >= MIN_IMAGE)                    
+                    if(image_count >= MIN_IMAGE)                        
                         break;
                     else
                         cv::putText(text_info, "Not enough images for calibration", cv::Point(10, 30), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
@@ -353,8 +355,12 @@ int main(int argc, char *argv[]) {
                 cv::putText(rendering_image, "Missing target on image left", cv::Point(10, display.size[0]+110), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
 
             cv::putText(rendering_image, "Press 's' to save the current frames", cv::Point(10, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
-            if(coverage_mode)
-                cv::putText(rendering_image, "Keep going until the green covers the image, it represents coverage", cv::Point(10, display.size[0]+55), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
+            if(coverage_mode) {
+                std::stringstream ss_cov;
+                ss_cov << "Coverage: " << std::fixed << std::setprecision(2) << (1-cov_left)*100 << "%/" << min_coverage << "%";
+                cv::putText(rendering_image, ss_cov.str(), cv::Point(10, display.size[0]+55), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
+                cv::putText(rendering_image, "Keep going until the green covers the image, it represents coverage", cv::Point(10, display.size[0]+85), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color, 1);
+            }
             if(!frames_rot_good)
                 cv::putText(rendering_image, "!!! Do not rotate the checkerboard more than 45 deg around Z !!!", 
                     cv::Point(600, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
@@ -394,11 +400,11 @@ int main(int argc, char *argv[]) {
                             calib.right.K = cv::initCameraMatrix2D(pts_init_obj, pts_init_im_r, cv::Size(camera_resolution.width, camera_resolution.height));
                             need_intrinsic_estimation = false;
                         }
-                    }else{
+                    } else {
                         if (!angle_clb) {
                             pts_detected.push_back(pts_l);
                             cov_left = CheckCoverage(pts_detected, cv::Size(camera_resolution.width, camera_resolution.height));
-                            std::cout << "Coverage : " << (1-cov_left)*100 << "%/" << (100-min_coverage) << "%" << std::endl;
+                            std::cout << "Coverage : " << (1-cov_left)*100 << "%/" << min_coverage << "%" << std::endl;
                             if (cov_left < ((100-min_coverage)/100.0f)) {
                                 cv::Mat rvec(1, 3, CV_64FC1);
                                 cv::Mat tvec(1, 3, CV_64FC1);
@@ -450,6 +456,8 @@ int main(int argc, char *argv[]) {
         }
         sl::sleep_ms(10); 
     }
+
+    // Add "Calibration in progress" message
     int err = calibrate(folder, calib, target_w, target_h, square_size, zed_info.serial_number, false, can_use_calib_prior);
     if (err == EXIT_SUCCESS) 
         std::cout << "CALIBRATION success" << std::endl;

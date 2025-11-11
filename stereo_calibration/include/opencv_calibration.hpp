@@ -13,9 +13,9 @@ struct CameraCalib{
     cv::Mat D;
     bool disto_model_RadTan = true;
 
-    void print(std::string name) {
-        std::cout << name << " K:\n" << K << std::endl;
-        std::cout  << " D:\n" << D << std::endl;
+    void print(const std::string& name) const {
+      std::cout << name << " K:" << std::endl << K << std::endl;
+      std::cout << " D:" << std::endl << D << std::endl;
     }
 
     void initDefault(bool radtan){
@@ -31,7 +31,7 @@ struct CameraCalib{
         }
     }
 
-    void setFrom(sl::CameraParameters & cam) {
+    void setFrom(const sl::CameraParameters & cam) {
         K = cv::Mat::eye(3, 3, CV_64FC1);
         K.at<double>(0, 0) = cam.fx;
         K.at<double>(1, 1) = cam.fy;
@@ -97,7 +97,7 @@ struct StereoCalib{
         T = cv::Mat::zeros(3, 1, CV_64FC1);
     }
 
-    void setFrom(sl::CalibrationParameters & calib_params) {        
+    void setFrom(const sl::CalibrationParameters & calib_params) {
         left.setFrom(calib_params.left_cam);
         right.setFrom(calib_params.right_cam);
         
@@ -135,4 +135,7 @@ struct StereoCalib{
     }
 };
 
-int calibrate(const std::string& folder, StereoCalib &raw_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono = false, bool use_intrinsic_prior = false);
+int calibrate(const std::string &folder, StereoCalib &raw_data, int target_w,
+              int target_h, float square_size, int serial,
+              bool save_calib_mono = false, bool use_intrinsic_prior = false,
+              float max_repr_error = 0.5f);

@@ -1,6 +1,6 @@
 #include "opencv_calibration.hpp"
 
-int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono, bool use_intrinsic_prior){
+int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono, bool use_intrinsic_prior, float max_repr_error){
 
     std::vector<cv::Mat> left_images, right_images;
 
@@ -26,7 +26,8 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         img_number++;
     }
 
-    std::cout << "\n\t"<< left_images.size() << " images opened" << std::endl;
+    std::cout << std::endl << "\t" << left_images.size() << " images opened"
+                                     << std::endl;
 
     // Define object points of the target
     std::vector<cv::Point3f> pattern_points;
@@ -74,14 +75,25 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
         auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize, flags);
         auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize, flags);
-        std::cout << " * Reprojection error:\t Left "<<rms_l<<" Right "<<rms_r<< std::endl;
+        std::cout << " * Reprojection error: " << std::endl;
+        std::cout << "   * Left " << rms_l << (rms_l > max_repr_error ? " !!! TOO HIGH !!!" : "")
+                  << std::endl;
+        std::cout << "   * Right " << rms_r << (rms_r > max_repr_error ? " !!! TOO HIGH !!!" : "")
+                  << std::endl;
 
         auto err = calib_data.calibrate(object_points, pts_l, pts_r, imageSize, cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY);
-        std::cout << " * Reprojection error:\t Stereo " << err << std::endl;
+        std::cout << "   * Stereo " << err << (err > max_repr_error ? " !!! TOO HIGH !!!" : "") << std::endl;
 
-        if(rms_l > 0.5f || rms_r > 0.5f || err > 0.5f)
-            std::cout<<"\n\t !! Warning !!\n The reprojection error looks too high, check that the lens are clean (sharp images) and that the pattern is printed/mounted on a strong and flat surface."<<std::endl;
+        if(rms_l > 0.5f || rms_r > 0.5f || err > 0.5f) {
+            std::cout << std::endl << "\t !! Warning !!" << std::endl << " The reprojection error looks too high (>"
+              << max_repr_error << "), check that the lens are clean (sharp images)"
+              " and that the pattern is printed/mounted on a not flexible and flat surface." << std::endl;
+
+            return EXIT_FAILURE;
+        }
         
+        std::cout << std::endl;
+
         std::cout << " ** Camera parameters **" << std::endl;
         std::cout << "  * Intrinsic mat left:\t" << calib_data.left.K << std::endl;
         std::cout << "  * Distortion mat left:\t" << calib_data.left.D << std::endl;
@@ -94,8 +106,9 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
         std::cout << std::endl << "*** Calibration file ***" << std::endl;        
         std::string calib_filename = "zed_calibration_" + std::to_string(serial) + ".yml";
 
-        std::cout<<" * Saving calibration file: " << calib_filename << std::endl;
-        std::cout<<" * If you want to use this calibration with the ZED SDK, you can load it by using sl::InitParameters::optional_opencv_calibration_file" << std::endl;
+        std::cout << " * Saving calibration file: " << calib_filename << std::endl;
+        std::cout << " * If you want to use this calibration with the ZED SDK, you can load it by using sl::InitParameters::optional_opencv_calibration_file" << std::endl;
+        std::cout << std::endl;
 
         cv::FileStorage fs(calib_filename, cv::FileStorage::WRITE);
         if (fs.isOpened()) {
@@ -110,8 +123,10 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
 
             fs << "R" << calib_data.Rv << "T" << calib_data.T;
             fs.release();
-        } else
-            std::cout << "Error: can not save the extrinsic parameters\n";
+        } else {
+            std::cout << "Error: can not save the extrinsic parameters" << std::endl;
+            return EXIT_FAILURE;
+        }
     }
     return EXIT_SUCCESS;
 }
