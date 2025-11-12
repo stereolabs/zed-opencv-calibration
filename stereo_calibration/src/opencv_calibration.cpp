@@ -16,8 +16,11 @@ int calibrate( int img_count, const std::string& folder, StereoCalib &calib_data
                 imageSize = grey_l.size();
             else
                 if (imageSize != left_images.back().size()) {
-                std::cout << "Image number " << img_number << " does not have the same size as the previous ones"<< imageSize<<" vs "<< left_images.back().size() << std::endl;
-                break;
+              std::cout << "Image number " << i
+                        << " does not have the same size as the previous ones"
+                        << imageSize << " vs " << left_images.back().size()
+                        << std::endl;
+              break;
             }
 
             left_images.push_back(grey_l);
