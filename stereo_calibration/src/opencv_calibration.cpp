@@ -1,16 +1,16 @@
 #include "opencv_calibration.hpp"
 
-int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono, bool use_intrinsic_prior, float max_repr_error){
+int calibrate( int img_count, const std::string& folder, StereoCalib &calib_data, int target_w, int target_h, float square_size, int serial, bool save_calib_mono, bool use_intrinsic_prior, float max_repr_error){
 
     std::vector<cv::Mat> left_images, right_images;
 
     /// Read images
     cv::Size imageSize = cv::Size(0, 0);
-    int img_number = 0;
 
-    while (1) {
-        cv::Mat grey_l = cv::imread(folder + "image_left_" + std::to_string(img_number) + ".png", cv::IMREAD_GRAYSCALE);
-        cv::Mat grey_r = cv::imread(folder + "image_right_" + std::to_string(img_number) + ".png", cv::IMREAD_GRAYSCALE);
+    for(int i = 0; i < img_count; i++) {
+        cv::Mat grey_l = cv::imread(folder + "image_left_" + std::to_string(i) + ".png", cv::IMREAD_GRAYSCALE);
+        cv::Mat grey_r = cv::imread(folder + "image_right_" + std::to_string(i) + ".png", cv::IMREAD_GRAYSCALE);
+        
         if (!grey_l.empty() && !grey_r.empty()) {
             if (imageSize.width == 0)
                 imageSize = grey_l.size();
@@ -22,8 +22,7 @@ int calibrate(const std::string& folder, StereoCalib &calib_data, int target_w, 
 
             left_images.push_back(grey_l);
             right_images.push_back(grey_r);
-        }else break;
-        img_number++;
+        }
     }
 
     std::cout << std::endl << "\t" << left_images.size() << " images opened"
