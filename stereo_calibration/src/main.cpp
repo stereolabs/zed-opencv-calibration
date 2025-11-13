@@ -247,8 +247,8 @@ int main(int argc, char *argv[]) {
     sl::Mat zed_imageR(camera_resolution, sl::MAT_TYPE::U8_C4, sl::MEM::CPU);
     auto rgb_r = cv::Mat(camera_resolution.height, camera_resolution.width, CV_8UC4, zed_imageR.getPtr<sl::uchar1>());
 
-    // Number of area to fill 4 horizontally
-    bucketsize = camera_resolution.width/4;
+    // Number of area to fill horizontally
+    bucketsize = camera_resolution.width/6;
 
     bool frames_rot_good=true;
     cv::Mat blank = cv::Mat::zeros(camera_resolution.height, camera_resolution.width, CV_8UC1);
@@ -267,6 +267,7 @@ int main(int argc, char *argv[]) {
               cv::Point3f(square_size * j, square_size * i, 0.0));
         }
     }
+    
 
     // Check if the temp image folder exists and clear it
     if (fs::exists(image_folder)) {
@@ -280,9 +281,11 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Data for initial intrinsic estimation
     std::vector<std::vector<cv::Point2f>> pts_init_im_l, pts_init_im_r;
     std::vector<std::vector<cv::Point3f>> pts_init_obj;
 
+    // Size of the rendered images
     const cv::Size display_size(720, 404);
 
     char key = ' ';
@@ -395,7 +398,7 @@ int main(int argc, char *argv[]) {
                 }
                 if(!frames_rot_good) {
                     cv::putText(rendering_image, "!!! Do not rotate the checkerboard more than 45 deg around Z !!!", 
-                        cv::Point(600, display.size[0]+25), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
+                        cv::Point(600, display.size[0]+50), cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
                 }
 
                 std::stringstream ss_img_count;
@@ -419,54 +422,61 @@ int main(int argc, char *argv[]) {
 
                 if (found_l && found_r) {
                     scaleKP(pts_l, display_size, cv::Size(camera_resolution.width, camera_resolution.height));
+                    pts_init_im_l.push_back(pts_l);
+                    scaleKP(pts_r, display_size, cv::Size(camera_resolution.width, camera_resolution.height));
+                    pts_init_im_r.push_back(pts_r);
+                    pts_init_obj.push_back(pts_obj_);
 
-                    if(need_intrinsic_estimation) {
-                        pts_init_im_l.push_back(pts_l);
+                        if (need_intrinsic_estimation) {
+                      // wait 5 images before running the estimate
+                      if (pts_init_im_l.size() >= 5) {
+                        calib.left.K = cv::initCameraMatrix2D( pts_init_obj, pts_init_im_l, cv::Size(camera_resolution.width, camera_resolution.height));
+                        calib.right.K = cv::initCameraMatrix2D( pts_init_obj, pts_init_im_r, cv::Size(camera_resolution.width, camera_resolution.height));
+                        std::cout << "Intrinsic estimation done:" << std::endl;
+                        std::cout << "Left K: " << std::endl << calib.left.K << std::endl;
+                        std::cout << "Right K: " << std::endl << calib.right.K << std::endl;
+                        need_intrinsic_estimation = false;
+                      }
+                    }
+                    else {
+                      if (!angle_clb) {
+                        pts_detected.push_back(pts_l);
+                        cov_left = CheckCoverage(
+                            pts_detected, cv::Size(camera_resolution.width,
+                                                   camera_resolution.height));
+                        std::cout << "Coverage : " << (1 - cov_left) * 100
+                                  << "%/" << min_coverage << "%" << std::endl;
+                        if (cov_left < ((100.0 - min_coverage) / 100.0)) {
+                          // Coverage Complete. Start angle calibration
+                          std::cout << "Coverage complete. Start angle "
+                                       "calibration."
+                                    << std::endl;
 
-                        scaleKP(pts_r, display_size, cv::Size(camera_resolution.width, camera_resolution.height));
-                        pts_init_im_r.push_back(pts_r);
+                          // Estimate intrinsic with a better image coverage
+                          need_intrinsic_estimation = true;
 
-                        pts_init_obj.push_back(pts_obj_);
-
-                        // wait 3 images before running the estimate
-                        if(pts_init_im_l.size()>3){
-                            calib.left.K = cv::initCameraMatrix2D(pts_init_obj, pts_init_im_l, cv::Size(camera_resolution.width, camera_resolution.height));
-                            calib.right.K = cv::initCameraMatrix2D(pts_init_obj, pts_init_im_r, cv::Size(camera_resolution.width, camera_resolution.height));
-                            need_intrinsic_estimation = false;
+                          angle_clb = true;
                         }
-                    } else {
-                        if (!angle_clb) {
+                      } else {
+                        cv::Mat rvec(1, 3, CV_32FC1);
+                        cv::Mat tvec(1, 3, CV_32FC1);
+                        std::cout << "Before undistort" << pts_l << std::endl;
+                        auto undist_pts = calib.left.undistortPoints(pts_l);
+                        std::cout << "After undistort" << undist_pts
+                                  << std::endl;
+                        cv::Mat empty_dist;
+                        bool found_ = cv::solvePnP(
+                            pts_obj_, undist_pts, calib.left.K, empty_dist,
+                            rvec, tvec, false, cv::SOLVEPNP_EPNP);
+                        if (found_) {
+                          frames_rot_good =
+                              updateRT(checker, rvec, tvec, first_angle_check);
+                          if (frames_rot_good) {
                             pts_detected.push_back(pts_l);
-                            cov_left = CheckCoverage(pts_detected, cv::Size(camera_resolution.width, camera_resolution.height));
-                            std::cout << "Coverage : " << (1-cov_left)*100 << "%/" << min_coverage << "%" << std::endl;
-                            if (cov_left < ((100.0 - min_coverage) / 100.0)) {
-                              // Coverage Complete. Start angle calibration
-                              std::cout << "Coverage complete. Start angle "
-                                           "calibration."
-                                        << std::endl;
-
-                              angle_clb = true;
-                            }
-                        } else {
-                            cv::Mat rvec(1, 3, CV_32FC1);
-                            cv::Mat tvec(1, 3, CV_32FC1);
-                            std::cout << "Before undistort" << pts_l
-                                      << std::endl;
-                            auto undist_pts = calib.left.undistortPoints(pts_l);
-                            std::cout << "After undistort" << undist_pts
-                                      << std::endl;
-                            cv::Mat empty_dist;
-                            bool found_ = cv::solvePnP(
-                                pts_obj_, undist_pts, calib.left.K, empty_dist,
-                                rvec, tvec, false, cv::SOLVEPNP_EPNP);
-                            if (found_) {
-                                frames_rot_good = updateRT(checker, rvec, tvec, first_angle_check);
-                                if(frames_rot_good) {
-                                    pts_detected.push_back(pts_l);
-                                    first_angle_check = false;
-                                }
-                            }
+                            first_angle_check = false;
+                          }
                         }
+                      }
                     }
 
                     if (frames_rot_good) {
