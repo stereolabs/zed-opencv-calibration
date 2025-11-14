@@ -502,8 +502,8 @@ int main(int argc, char* argv[]) {
             image_count++;
 
             float size_score, skew_score, pos_score_x, pos_score_y;
-            checker.calculateSampleCollectionStatus(size_score, skew_score,
-                                                    pos_score_x, pos_score_y);
+            checker.evaluateSampleCollectionStatus(size_score, skew_score,
+                                                   pos_score_x, pos_score_y);
 
           } else {
             std::cout << " ! Sample detected but not valid. Please check the "

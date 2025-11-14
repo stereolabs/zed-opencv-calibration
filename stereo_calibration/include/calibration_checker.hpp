@@ -35,10 +35,11 @@ public:
     }
 
     // Calculate the sample collection status according to the stored samples
-    void calculateSampleCollectionStatus( float& size_score, float& skew_score,
-                                        float& pos_score_x, float& pos_score_y ) const;
+    bool evaluateSampleCollectionStatus(float& size_score, float& skew_score,
+                                        float& pos_score_x,
+                                        float& pos_score_y) const;
 
-private:
+   private:
     // Calculate the parameter of a detected checkerboard
     BoardParams getDetectedBoarParams(const std::vector<cv::Point2f>& corners, cv::Size image_size);
 
