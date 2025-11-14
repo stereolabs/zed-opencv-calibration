@@ -58,7 +58,9 @@ private:
     std::vector<BoardParams> paramDb_;                      // Database of previously detected board parameters
     std::vector<std::vector<cv::Point2f>> validCorners_;    // All the corners associated to the single parameters in paramDb_
 
-    const BoardParams idealParams_ = {cv::Point2f(0.7f, 0.7f), 0.4f, 0.5f}; // Ideal parameters for a good sample database
+    const BoardParams idealParams_ = {cv::Point2f(0.65f, 0.65f), 0.4f, 0.f}; // Ideal parameters for a good sample database
+    const size_t min_samples_ = 20; // Minimum number of samples to consider the database complete
+    const size_t max_samples_ = 50; // Maximum number of samples to consider the database complete
 };
 
 #endif // CALIBRATION_CHECKER_HPP

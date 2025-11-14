@@ -195,8 +195,8 @@ void CalibrationChecker::calculateSampleCollectionStatus(float& size_score, floa
     }
 
     // Don't reward small size or skew
-    min_size = 0.0f;
-    min_skew = 0.0f;
+    //min_size = 0.0f;
+    //min_skew = 0.0f;
 
     pos_score_x = std::min((max_px - min_px)/idealParams_.pos.x,1.0f);
     pos_score_y = std::min((max_py - min_py)/idealParams_.pos.y,1.0f);
@@ -204,12 +204,13 @@ void CalibrationChecker::calculateSampleCollectionStatus(float& size_score, floa
     skew_score = std::min((max_skew - min_skew)/idealParams_.skew,1.0f);
 
     std::cout << "Sample Collection Status:" << std::endl;
-    std::cout << " * PosX Score : " << std::setprecision(3) << pos_score_x
-              << std::endl;
-    std::cout << " * PosY Score : " << std::setprecision(3) << pos_score_y
-              << std::endl;
-    std::cout << " * Size Score : " << std::setprecision(3) << size_score
-              << std::endl;
-    std::cout << " * Skew Score : " << std::setprecision(3) << skew_score
+    std::cout << " - PosX status: [" << min_px << " , " << max_px << "] -> " << max_px - min_px << "/" << idealParams_.pos.x << std::endl;
+    std::cout << "  * PosX Score : " << std::setprecision(3) << pos_score_x << std::endl;
+    std::cout << " - PosY status: [" << min_py << " , " << max_py << "] -> " << max_py - min_py << "/" << idealParams_.pos.y << std::endl;
+    std::cout << "  * PosY Score : " << std::setprecision(3) << pos_score_y << std::endl;
+    std::cout << " - Size status: [" << min_size << " , " << max_size << "] -> " << max_size - min_size << "/" << idealParams_.size << std::endl;
+    std::cout << "  * Size Score : " << std::setprecision(3) << size_score << std::endl;
+    std::cout << " - Skew status: [" << min_skew << " , " << max_skew << "] -> " << max_skew - min_skew << "/" << idealParams_.skew << std::endl;
+    std::cout << "  * Skew Score : " << std::setprecision(3) << skew_score
               << std::endl;
 }
