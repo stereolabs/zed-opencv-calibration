@@ -28,7 +28,7 @@ CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
 
 bool CalibrationChecker::testSample(const std::vector<cv::Point2f>& corners,
                                     cv::Size image_size) {
-  BoardParams params = getDetectedBoarParams(corners, image_size);
+  DetectedBoardParams params = getDetectedBoarParams(corners, image_size);
 
   if (params.size < 0 || params.skew < 0) {
     return false;  // Invalid parameters
@@ -118,9 +118,9 @@ std::vector<cv::Point2f> CalibrationChecker::get_outside_corners(
   return outside_corners;
 }
 
-BoardParams CalibrationChecker::getDetectedBoarParams(
+DetectedBoardParams CalibrationChecker::getDetectedBoarParams(
     const std::vector<cv::Point2f>& corners, cv::Size image_size) {
-  BoardParams params;
+  DetectedBoardParams params;
 
   auto outside_corners = get_outside_corners(corners);
   float area = compute_area(outside_corners);
@@ -160,23 +160,35 @@ BoardParams CalibrationChecker::getDetectedBoarParams(
 }
 
 bool CalibrationChecker::isGoodSample(
-    const BoardParams& params, const std::vector<cv::Point2f>& corners,
+    const DetectedBoardParams& params, const std::vector<cv::Point2f>& corners,
     const std::vector<cv::Point2f>& prev_corners) {
   if (paramDb_.empty()) {
     return true;  // First sample is always good
   }
 
-  auto param_distance = [](const BoardParams& p1,
-                           const BoardParams& p2) -> float {
-    return std::abs(p1.size - p2.size) + std::abs(p1.skew - p2.skew) +
-           std::abs(p1.pos.x - p2.pos.x) + std::abs(p1.pos.y - p2.pos.y);
+  auto check_distance = [](const DetectedBoardParams& p1,
+                           const DetectedBoardParams& p2) -> bool {
+    // Check that at least one parameter differs by at least 10%
+    float size_diff = std::abs(p1.size - p2.size) / std::max(p1.size, p2.size);
+    float skew_diff = std::abs(p1.skew - p2.skew) / std::max(p1.skew, p2.skew);
+    float pos_x_diff =
+        std::abs(p1.pos.x - p2.pos.x) / std::max(p1.pos.x, p2.pos.x);
+    float pos_y_diff =
+        std::abs(p1.pos.y - p2.pos.y) / std::max(p1.pos.y, p2.pos.y);
+
+    const float threshold = 0.1f;
+
+    if (size_diff < threshold && skew_diff < threshold &&
+        pos_x_diff < threshold && pos_y_diff < threshold) {
+      return false;  // Too similar
+    }
+    return true;
   };
 
   for (auto& stored_params : paramDb_) {
-    float dist = param_distance(params, stored_params);
-    if (dist < 0.2f) {  // TODO tune the threshold
-      std::cout << "  Rejected: Too similar to existing samples (dist=" << dist
-                << ")" << std::endl;
+    bool is_different = check_distance(params, stored_params);
+    if (!is_different) {  // TODO tune the threshold
+      std::cout << "  Rejected: Too similar to existing samples" << std::endl;
       return false;
     }
   }

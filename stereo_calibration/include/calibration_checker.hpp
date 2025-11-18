@@ -12,12 +12,12 @@ typedef struct _board {
   cv::Size2f board_size_mm = {0.0f, 0.0f};  // Physical size of the board in mm
 } Board;
 
-typedef struct _board_params {
+typedef struct _detected_board_params {
   cv::Point2f pos = {
       -1.0f, -1.0f};   // Normalized position of the checkerboard in the image
   float size = -1.0f;  // Normalized size of the checkerboard
   float skew = -1.0f;  // Normalized skew of the checkerboard
-} BoardParams;
+} DetectedBoardParams;
 
 class CalibrationChecker {
  public:
@@ -42,11 +42,11 @@ class CalibrationChecker {
 
  private:
   // Calculate the parameter of a detected checkerboard
-  BoardParams getDetectedBoarParams(const std::vector<cv::Point2f>& corners,
-                                    cv::Size image_size);
+  DetectedBoardParams getDetectedBoarParams(
+      const std::vector<cv::Point2f>& corners, cv::Size image_size);
 
   // Check if the detected corners are valid
-  bool isGoodSample(const BoardParams& params,
+  bool isGoodSample(const DetectedBoardParams& params,
                     const std::vector<cv::Point2f>& corners,
                     const std::vector<cv::Point2f>& prev_corners);
 
@@ -64,20 +64,20 @@ class CalibrationChecker {
  private:
   Board board_;
 
-  std::vector<BoardParams>
+  std::vector<DetectedBoardParams>
       paramDb_;  // Database of previously detected board parameters
   std::vector<std::vector<cv::Point2f>>
       validCorners_;  // All the corners associated to the single parameters in
                       // paramDb_
 
-  const BoardParams idealParams_ = {
+  const DetectedBoardParams idealParams_ = {
       cv::Point2f(
-        0.65f, // Checkerboard X position should cover 65% of the image width
-        0.65f  // Checkerboard Y position should cover 65% of the image height
-    ), 
-      0.4f, // Checkerboard size variation should be at least 40%
-      0.7f  // Checkerboard skew variation should be at least 70%
-    };  // Ideal parameters for a good sample database
+          0.65f,  // Checkerboard X position should cover 65% of the image width
+          0.65f  // Checkerboard Y position should cover 65% of the image height
+          ),
+      0.4f,  // Checkerboard size variation should be at least 40%
+      0.6f   // Checkerboard skew variation should be at least 70%
+  };         // Ideal parameters for a good sample database
   const size_t min_samples_ =
       20;  // Minimum number of samples to consider the database complete
   const size_t max_samples_ =
