@@ -7,7 +7,10 @@ constexpr size_t up_right = 1;
 constexpr size_t down_right = 2;
 constexpr size_t down_left = 3;
 
-CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size) {
+CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
+                                       bool verbose) {
+  verbose_ = verbose;
+
   // Initialize the board parameters
   board_.board_size = board_size;
   board_.square_size = square_size;
@@ -239,7 +242,7 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
     std::cout << "Sample collection incomplete: not reached the minimum sample "
                  "count ("
               << paramDb_.size() << "/" << min_samples_ << ")" << std::endl;
-    return true;
+    return false;
   }
 
   if (paramDb_.size() >= max_samples_) {

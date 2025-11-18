@@ -21,45 +21,47 @@ constexpr float square_size = 25.4;  // mm
 
 std::string image_folder = "zed-images/";
 
-int verbose = 0;
+// struct extrinsic_checker {
+//   float rot_x_min;
+//   float rot_y_min;
+//   float rot_z_min;
+//   float rot_x_max;
+//   float rot_y_max;
+//   float rot_z_max;
 
-struct extrinsic_checker {
-  float rot_x_min;
-  float rot_y_min;
-  float rot_z_min;
-  float rot_x_max;
-  float rot_y_max;
-  float rot_z_max;
+//   float rot_x_delta;
+//   float rot_y_delta;
+//   float rot_z_delta;
 
-  float rot_x_delta;
-  float rot_y_delta;
-  float rot_z_delta;
-
-  float d_min;
-  float d_max;
-  float distance_tot;
-};
+//   float d_min;
+//   float d_max;
+//   float distance_tot;
+// };
 
 std::map<std::string, std::string> parseArguments(int argc, char* argv[]);
-bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z,
-                  float distance, int fontSize);
-float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts,
-                    const cv::Size& imgSize);
-bool updateRT(extrinsic_checker& checker_, cv::Mat r, cv::Mat t,
-              bool first_time);
+// bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z,
+//                   float distance, int fontSize);
+// float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts,
+//                     const cv::Size& imgSize);
+// bool updateRT(extrinsic_checker& checker_, cv::Mat r, cv::Mat t,
+//               bool first_time);
 
 /// Rendering
 constexpr int text_area_height = 200;
 
 /// Calibration condition
-const float min_coverage = 90;          // in percentage
-const float min_rotation = 60;          // in degrees
-const float acceptable_rotation = 50;   // in degrees
-const float min_distance = 300;         // in mm
-const float acceptable_distance = 200;  // in mm
+// const float min_coverage = 90;          // in percentage
+// const float min_rotation = 60;          // in degrees
+// const float acceptable_rotation = 50;   // in degrees
+// const float min_distance = 300;         // in mm
+// const float acceptable_distance = 200;  // in mm
 const float max_repr_error = 0.5;       // in pixels
 
-std::vector<std::vector<cv::Point2f>> pts_detected;
+// Debug
+bool verbose = true;
+int sdk_verbose = 1;
+
+//std::vector<std::vector<cv::Point2f>> pts_detected;
 
 std::vector<cv::Point2f> square_valid;
 int bucketsize = 480;
@@ -158,7 +160,7 @@ struct Args {
 
 int main(int argc, char* argv[]) {
   // Setup the calibration checker
-  CalibrationChecker checker(cv::Size(target_w, target_h), square_size);
+  CalibrationChecker checker(cv::Size(target_w, target_h), square_size, verbose);
 
   Args args;
   args.parse(argc, argv);
@@ -184,7 +186,7 @@ int main(int argc, char* argv[]) {
   init_params.enable_image_validity_check =
       false;  // Disable image validity check for performance
   init_params.camera_disable_self_calib = true;
-  init_params.sdk_verbose = verbose;
+  init_params.sdk_verbose = sdk_verbose;
 
   // Configure the Virtual Stereo Camera if '--zedxone' argument is provided
   if (args.is_zed_x_one_virtual_stereo) {
@@ -314,8 +316,8 @@ int main(int argc, char* argv[]) {
   }
 
   // Data for initial intrinsic estimation
-  std::vector<std::vector<cv::Point2f>> pts_init_im_l, pts_init_im_r;
-  std::vector<std::vector<cv::Point3f>> pts_init_obj;
+  //std::vector<std::vector<cv::Point2f>> pts_init_im_l, pts_init_im_r;
+  //std::vector<std::vector<cv::Point3f>> pts_init_obj;
 
   // Size of the rendered images
   const cv::Size display_size(720, 404);
@@ -480,7 +482,7 @@ int main(int argc, char* argv[]) {
         if (found_l && found_r) {
           scaleKP(pts_l, display_size,
                   cv::Size(camera_resolution.width, camera_resolution.height));
-          pts_init_im_l.push_back(pts_l);
+          // pts_init_im_l.push_back(pts_l);
           scaleKP(pts_r, display_size,
                   cv::Size(camera_resolution.width, camera_resolution.height));
           // pts_init_im_r.push_back(pts_r);
@@ -502,8 +504,10 @@ int main(int argc, char* argv[]) {
             image_count++;
 
             float size_score, skew_score, pos_score_x, pos_score_y;
-            checker.evaluateSampleCollectionStatus(size_score, skew_score,
-                                                   pos_score_x, pos_score_y);
+            if( checker.evaluateSampleCollectionStatus(size_score, skew_score,
+                                                   pos_score_x, pos_score_y) ) {
+              std::cout << ">>> Sample collection status: COMPLETE <<<" << std::endl;
+              acquisition_completed = true;}
 
           } else {
             std::cout << " ! Sample detected but not valid. Please check the "
@@ -585,7 +589,7 @@ int main(int argc, char* argv[]) {
   // Add "Calibration in progress" message
   int err = calibrate(image_count, image_folder, calib, target_w, target_h,
                       square_size, zed_info.serial_number, false,
-                      can_use_calib_prior, max_repr_error);
+                      can_use_calib_prior, max_repr_error, true);
   if (err == EXIT_SUCCESS)
     std::cout << "CALIBRATION success" << std::endl;
   else
@@ -607,254 +611,254 @@ inline float interpolate(float x, float x0, float x1, float y0 = 0,
   return interpolatedValue;
 }
 
-bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z,
-                  float distance, int fontSize) {
-  bool status = false;
-  // Define text from rotation and distance
+// bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z,
+//                   float distance, int fontSize) {
+//   bool status = false;
+//   // Define text from rotation and distance
 
-  // Convert float values to string with two decimal places
-  std::stringstream ss_rot_x, ss_rot_y, ss_rot_z, ss_distance;
+//   // Convert float values to string with two decimal places
+//   std::stringstream ss_rot_x, ss_rot_y, ss_rot_z, ss_distance;
 
-  int rot_x_idx = interpolate(rot_x, 0, min_rotation);
-  int rot_y_idx = interpolate(rot_y, 0, min_rotation);
-  int rot_z_idx = interpolate(rot_z, 0, min_rotation);
-  int distance_idx = interpolate(distance, 0, min_distance);
+//   int rot_x_idx = interpolate(rot_x, 0, min_rotation);
+//   int rot_y_idx = interpolate(rot_y, 0, min_rotation);
+//   int rot_z_idx = interpolate(rot_z, 0, min_rotation);
+//   int distance_idx = interpolate(distance, 0, min_distance);
 
-  ss_rot_x << "Rotation X: " << std::fixed << std::setprecision(1) << rot_x_idx
-           << "%   ";
-  ss_rot_y << " / Rotation Y: " << std::fixed << std::setprecision(1)
-           << rot_y_idx << "%   ";
-  ss_rot_z << " / Rotation Z: " << std::fixed << std::setprecision(1)
-           << rot_z_idx << "%   ";
-  ss_distance << " / Distance: " << std::fixed << std::setprecision(1)
-              << distance_idx << "%";
+//   ss_rot_x << "Rotation X: " << std::fixed << std::setprecision(1) << rot_x_idx
+//            << "%   ";
+//   ss_rot_y << " / Rotation Y: " << std::fixed << std::setprecision(1)
+//            << rot_y_idx << "%   ";
+//   ss_rot_z << " / Rotation Z: " << std::fixed << std::setprecision(1)
+//            << rot_z_idx << "%   ";
+//   ss_distance << " / Distance: " << std::fixed << std::setprecision(1)
+//               << distance_idx << "%";
 
-  std::string text1 = ss_rot_x.str();
-  std::string text2 = ss_rot_y.str();
-  std::string text3 = ss_rot_z.str();
-  std::string text4 = ss_distance.str();
+//   std::string text1 = ss_rot_x.str();
+//   std::string text2 = ss_rot_y.str();
+//   std::string text3 = ss_rot_z.str();
+//   std::string text4 = ss_distance.str();
 
-  std::string text = text1 + text2 + text3 + text4;
+//   std::string text = text1 + text2 + text3 + text4;
 
-  cv::Scalar color1, color2, color3, color4;
+//   cv::Scalar color1, color2, color3, color4;
 
-  // Condition on colors
-  if (rot_x > min_rotation)
-    color1 = cv::Scalar(0, 255, 0);
-  else if (rot_x >= acceptable_rotation)
-    color1 = warn_color;
-  else
-    color1 = cv::Scalar(0, 0, 255);
+//   // Condition on colors
+//   if (rot_x > min_rotation)
+//     color1 = cv::Scalar(0, 255, 0);
+//   else if (rot_x >= acceptable_rotation)
+//     color1 = warn_color;
+//   else
+//     color1 = cv::Scalar(0, 0, 255);
 
-  if (rot_y > min_rotation)
-    color2 = cv::Scalar(0, 255, 0);
-  else if (rot_y >= acceptable_rotation)
-    color2 = warn_color;
-  else
-    color2 = cv::Scalar(0, 0, 255);
+//   if (rot_y > min_rotation)
+//     color2 = cv::Scalar(0, 255, 0);
+//   else if (rot_y >= acceptable_rotation)
+//     color2 = warn_color;
+//   else
+//     color2 = cv::Scalar(0, 0, 255);
 
-  if (rot_z > min_rotation)
-    color3 = cv::Scalar(0, 255, 0);
-  else if (rot_z >= acceptable_rotation)
-    color3 = warn_color;
-  else
-    color3 = cv::Scalar(0, 0, 255);
+//   if (rot_z > min_rotation)
+//     color3 = cv::Scalar(0, 255, 0);
+//   else if (rot_z >= acceptable_rotation)
+//     color3 = warn_color;
+//   else
+//     color3 = cv::Scalar(0, 0, 255);
 
-  if (distance > min_distance)
-    color4 = cv::Scalar(0, 255, 0);
-  else if (distance >= acceptable_distance)
-    color4 = warn_color;
-  else
-    color4 = cv::Scalar(0, 0, 255);
+//   if (distance > min_distance)
+//     color4 = cv::Scalar(0, 255, 0);
+//   else if (distance >= acceptable_distance)
+//     color4 = warn_color;
+//   else
+//     color4 = cv::Scalar(0, 0, 255);
 
-  // Get image dimensions
-  int width = image.cols;
-  int height = image.rows;
+//   // Get image dimensions
+//   int width = image.cols;
+//   int height = image.rows;
 
-  // Calculate text size
-  int baseline = 0;
-  cv::Size textSize =
-      cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, fontSize, 1, &baseline);
+//   // Calculate text size
+//   int baseline = 0;
+//   cv::Size textSize =
+//       cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, fontSize, 1, &baseline);
 
-  // Calculate text position
-  int x = (width - textSize.width) / 2;
-  int y = (height + textSize.height) / 2;
+//   // Calculate text position
+//   int x = (width - textSize.width) / 2;
+//   int y = (height + textSize.height) / 2;
 
-  status = (rot_x > min_rotation) && (rot_y > min_rotation) &&
-           (rot_z > min_rotation) && (distance > min_distance);
+//   status = (rot_x > min_rotation) && (rot_y > min_rotation) &&
+//            (rot_z > min_rotation) && (distance > min_distance);
 
-  // Draw text on image with different colors
-  cv::putText(image, text1, cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, fontSize,
-              color1, 2);
-  cv::putText(image, text2, cv::Point(x + textSize.width / 4, y),
-              cv::FONT_HERSHEY_SIMPLEX, fontSize, color2, 2);
-  cv::putText(image, text3, cv::Point(x + textSize.width / 2, y),
-              cv::FONT_HERSHEY_SIMPLEX, fontSize, color3, 2);
-  cv::putText(image, text4, cv::Point(x + 3 * textSize.width / 4, y),
-              cv::FONT_HERSHEY_SIMPLEX, fontSize, color4, 2);
+//   // Draw text on image with different colors
+//   cv::putText(image, text1, cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, fontSize,
+//               color1, 2);
+//   cv::putText(image, text2, cv::Point(x + textSize.width / 4, y),
+//               cv::FONT_HERSHEY_SIMPLEX, fontSize, color2, 2);
+//   cv::putText(image, text3, cv::Point(x + textSize.width / 2, y),
+//               cv::FONT_HERSHEY_SIMPLEX, fontSize, color3, 2);
+//   cv::putText(image, text4, cv::Point(x + 3 * textSize.width / 4, y),
+//               cv::FONT_HERSHEY_SIMPLEX, fontSize, color4, 2);
 
-  return status;
-}
+//   return status;
+// }
 
-bool CheckBucket(int min_h, int max_h, int min_w, int max_w, bool min,
-                 std::vector<std::vector<cv::Point2f>> pts) {
-  int count = 0;
+// bool CheckBucket(int min_h, int max_h, int min_w, int max_w, bool min,
+//                  std::vector<std::vector<cv::Point2f>> pts) {
+//   int count = 0;
 
-  for (int i = 0; i < pts.size(); i++) {
-    for (int j = 0; j < pts.at(i).size(); j++) {
-      if ((pts.at(i).at(j).x < max_w) && (pts.at(i).at(j).x > min_w)) {
-        if ((pts.at(i).at(j).y < max_h) && (pts.at(i).at(j).y > min_h)) {
-          count++;
-        }
-      }
-    }
-  }
+//   for (int i = 0; i < pts.size(); i++) {
+//     for (int j = 0; j < pts.at(i).size(); j++) {
+//       if ((pts.at(i).at(j).x < max_w) && (pts.at(i).at(j).x > min_w)) {
+//         if ((pts.at(i).at(j).y < max_h) && (pts.at(i).at(j).y > min_h)) {
+//           count++;
+//         }
+//       }
+//     }
+//   }
 
-  if (min) {
-    if (count > MinPts)
-      return true;
-    else
-      return false;
-  } else {
-    if (count < MaxPts)
-      return true;
-    else
-      return false;
-  }
-}
+//   if (min) {
+//     if (count > MinPts)
+//       return true;
+//     else
+//       return false;
+//   } else {
+//     if (count < MaxPts)
+//       return true;
+//     else
+//       return false;
+//   }
+// }
 
-float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts,
-                    const cv::Size& imgSize) {
-  int min_h_ = 0;
-  int max_h_ = bucketsize;
-  float tot = 0;
-  float error = 0;
+// float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts,
+//                     const cv::Size& imgSize) {
+//   int min_h_ = 0;
+//   int max_h_ = bucketsize;
+//   float tot = 0;
+//   float error = 0;
 
-  while (min_h_ < imgSize.height) {
-    if (max_h_ > imgSize.height) max_h_ = imgSize.height;
-    int min_w_ = 0;
-    int max_w_ = bucketsize;
-    while (min_w_ < imgSize.width) {
-      if (max_w_ > imgSize.width) max_w_ = imgSize.width;
-      if (!CheckBucket(min_h_, max_h_, min_w_, max_w_, true, pts)) {
-        error++;
-      } else
-        square_valid.push_back(cv::Point(min_w_, min_h_));
-      min_w_ += bucketsize;
-      max_w_ += bucketsize;
-      tot++;
-    }
-    min_h_ += bucketsize;
-    max_h_ += bucketsize;
-  }
-  return error / tot;
-}
+//   while (min_h_ < imgSize.height) {
+//     if (max_h_ > imgSize.height) max_h_ = imgSize.height;
+//     int min_w_ = 0;
+//     int max_w_ = bucketsize;
+//     while (min_w_ < imgSize.width) {
+//       if (max_w_ > imgSize.width) max_w_ = imgSize.width;
+//       if (!CheckBucket(min_h_, max_h_, min_w_, max_w_, true, pts)) {
+//         error++;
+//       } else
+//         square_valid.push_back(cv::Point(min_w_, min_h_));
+//       min_w_ += bucketsize;
+//       max_w_ += bucketsize;
+//       tot++;
+//     }
+//     min_h_ += bucketsize;
+//     max_h_ += bucketsize;
+//   }
+//   return error / tot;
+// }
 
-// Convert rotation vector (rvec) to Euler angles (roll, pitch, yaw) in radians
-cv::Vec3d rotationMatrixToEulerAngles(const cv::Mat& R) {
-  // sy is the magnitude in the X-Y plane for pitch calculation
-  float sy = std::sqrt(R.at<float>(0, 0) * R.at<float>(0, 0) +
-                       R.at<float>(1, 0) * R.at<float>(1, 0));
-  bool singular = sy < 1e-6;
+// // Convert rotation vector (rvec) to Euler angles (roll, pitch, yaw) in radians
+// cv::Vec3d rotationMatrixToEulerAngles(const cv::Mat& R) {
+//   // sy is the magnitude in the X-Y plane for pitch calculation
+//   float sy = std::sqrt(R.at<float>(0, 0) * R.at<float>(0, 0) +
+//                        R.at<float>(1, 0) * R.at<float>(1, 0));
+//   bool singular = sy < 1e-6;
 
-  float roll, pitch, yaw;
-  if (!singular) {
-    // Following OpenCV camera frame axis convention:
-    // roll around Z axis
-    roll = std::atan2(R.at<float>(1, 0),
-                      R.at<float>(0, 0));        // rotation about Z (roll)
-    pitch = std::atan2(-R.at<float>(2, 0), sy);  // rotation about X (pitch)
-    yaw = std::atan2(R.at<float>(2, 1),
-                     R.at<float>(2, 2));  // rotation about Y (yaw)
-  } else {
-    // Gimbal lock case
-    roll = std::atan2(-R.at<float>(1, 2), R.at<float>(1, 1));
-    pitch = std::atan2(-R.at<float>(2, 0), sy);
-    yaw = 0;
-  }
-  return cv::Vec3d(roll, pitch, yaw);
-}
+//   float roll, pitch, yaw;
+//   if (!singular) {
+//     // Following OpenCV camera frame axis convention:
+//     // roll around Z axis
+//     roll = std::atan2(R.at<float>(1, 0),
+//                       R.at<float>(0, 0));        // rotation about Z (roll)
+//     pitch = std::atan2(-R.at<float>(2, 0), sy);  // rotation about X (pitch)
+//     yaw = std::atan2(R.at<float>(2, 1),
+//                      R.at<float>(2, 2));  // rotation about Y (yaw)
+//   } else {
+//     // Gimbal lock case
+//     roll = std::atan2(-R.at<float>(1, 2), R.at<float>(1, 1));
+//     pitch = std::atan2(-R.at<float>(2, 0), sy);
+//     yaw = 0;
+//   }
+//   return cv::Vec3d(roll, pitch, yaw);
+// }
 
-bool updateRT(extrinsic_checker& checker_, cv::Mat rvec, cv::Mat tvec,
-              bool first_time) {
-  std::cout << "************************************************" << std::endl;
-  std::cout << " * Current rvec: [" << rvec.at<float>(0) << ", "
-            << rvec.at<float>(1) << ", " << rvec.at<float>(2) << "]"
-            << std::endl;
-  std::cout << " * Current tvec: [" << tvec.at<float>(0) << ", "
-            << tvec.at<float>(1) << ", " << tvec.at<float>(2) << "]"
-            << std::endl;
+// bool updateRT(extrinsic_checker& checker_, cv::Mat rvec, cv::Mat tvec,
+//               bool first_time) {
+//   std::cout << "************************************************" << std::endl;
+//   std::cout << " * Current rvec: [" << rvec.at<float>(0) << ", "
+//             << rvec.at<float>(1) << ", " << rvec.at<float>(2) << "]"
+//             << std::endl;
+//   std::cout << " * Current tvec: [" << tvec.at<float>(0) << ", "
+//             << tvec.at<float>(1) << ", " << tvec.at<float>(2) << "]"
+//             << std::endl;
 
-  // Convert rotation vector to rotation matrix
-  cv::Mat R;
-  cv::Rodrigues(rvec, R);
+//   // Convert rotation vector to rotation matrix
+//   cv::Mat R;
+//   cv::Rodrigues(rvec, R);
 
-  cv::Vec3d eulerAngles = rotationMatrixToEulerAngles(R);
+//   cv::Vec3d eulerAngles = rotationMatrixToEulerAngles(R);
 
-  // Convert radians to degrees
-  float rz = eulerAngles[0] * 180.0 / M_PI;
-  float rx = eulerAngles[1] * 180.0 / M_PI;
-  float ry = eulerAngles[2] * 180.0 / M_PI;
+//   // Convert radians to degrees
+//   float rz = eulerAngles[0] * 180.0 / M_PI;
+//   float rx = eulerAngles[1] * 180.0 / M_PI;
+//   float ry = eulerAngles[2] * 180.0 / M_PI;
 
-  std::cout << "Roll: " << rz << " Pitch: " << rx << " Yaw: " << ry
-            << std::endl;
+//   std::cout << "Roll: " << rz << " Pitch: " << rx << " Yaw: " << ry
+//             << std::endl;
 
-  float distance = sqrt(pow(tvec.at<float>(0), 2) + pow(tvec.at<float>(1), 2) +
-                        pow(tvec.at<float>(2), 2));
-  std::cout << "Distance: " << distance << " mm" << std::endl;
+//   float distance = sqrt(pow(tvec.at<float>(0), 2) + pow(tvec.at<float>(1), 2) +
+//                         pow(tvec.at<float>(2), 2));
+//   std::cout << "Distance: " << distance << " mm" << std::endl;
 
-  if (fabs(rz) > 45.0) {
-    std::cerr << " * Images ignored: Rot Z > 45° [" << rz << "°]" << std::endl;
-    return false;
-  }
+//   if (fabs(rz) > 45.0) {
+//     std::cerr << " * Images ignored: Rot Z > 45° [" << rz << "°]" << std::endl;
+//     return false;
+//   }
 
-  if (first_time) {
-    checker_.rot_x_min = rx;
-    checker_.rot_y_min = ry;
-    checker_.rot_z_min = rz;
+//   if (first_time) {
+//     checker_.rot_x_min = rx;
+//     checker_.rot_y_min = ry;
+//     checker_.rot_z_min = rz;
 
-    checker_.rot_x_max = rx;
-    checker_.rot_y_max = ry;
-    checker_.rot_z_max = rz;
+//     checker_.rot_x_max = rx;
+//     checker_.rot_y_max = ry;
+//     checker_.rot_z_max = rz;
 
-    checker_.d_min = distance;
-    checker_.d_max = distance;
+//     checker_.d_min = distance;
+//     checker_.d_max = distance;
 
-    checker_.rot_x_delta = 0;
-    checker_.rot_y_delta = 0;
-    checker_.rot_z_delta = 0;
-    checker_.distance_tot = 0;
+//     checker_.rot_x_delta = 0;
+//     checker_.rot_y_delta = 0;
+//     checker_.rot_z_delta = 0;
+//     checker_.distance_tot = 0;
 
-    return true;
-  }
+//     return true;
+//   }
 
-  // check min
-  if (checker_.rot_x_min > rx) checker_.rot_x_min = rx;
-  if (checker_.rot_y_min > ry) checker_.rot_y_min = ry;
-  if (checker_.rot_z_min > rz) checker_.rot_z_min = rz;
+//   // check min
+//   if (checker_.rot_x_min > rx) checker_.rot_x_min = rx;
+//   if (checker_.rot_y_min > ry) checker_.rot_y_min = ry;
+//   if (checker_.rot_z_min > rz) checker_.rot_z_min = rz;
 
-  // check max
-  if (checker_.rot_x_max < rx) checker_.rot_x_max = rx;
-  if (checker_.rot_y_max < ry) checker_.rot_y_max = ry;
-  if (checker_.rot_z_max < rz) checker_.rot_z_max = rz;
+//   // check max
+//   if (checker_.rot_x_max < rx) checker_.rot_x_max = rx;
+//   if (checker_.rot_y_max < ry) checker_.rot_y_max = ry;
+//   if (checker_.rot_z_max < rz) checker_.rot_z_max = rz;
 
-  if (checker_.d_min > distance) {
-    checker_.d_min = distance;
-  }
-  if (checker_.d_max < distance) {
-    checker_.d_max = distance;
-  }
+//   if (checker_.d_min > distance) {
+//     checker_.d_min = distance;
+//   }
+//   if (checker_.d_max < distance) {
+//     checker_.d_max = distance;
+//   }
 
-  // compute deltas
-  checker_.rot_x_delta = checker_.rot_x_max - checker_.rot_x_min;
-  checker_.rot_y_delta = checker_.rot_y_max - checker_.rot_y_min;
-  checker_.rot_z_delta = checker_.rot_z_max - checker_.rot_z_min;
-  checker_.distance_tot = checker_.d_max - checker_.d_min;
+//   // compute deltas
+//   checker_.rot_x_delta = checker_.rot_x_max - checker_.rot_x_min;
+//   checker_.rot_y_delta = checker_.rot_y_max - checker_.rot_y_min;
+//   checker_.rot_z_delta = checker_.rot_z_max - checker_.rot_z_min;
+//   checker_.distance_tot = checker_.d_max - checker_.d_min;
 
-  std::cout << " * delta rot x: " << checker_.rot_x_delta << std::endl;
-  std::cout << " * delta rot y: " << checker_.rot_y_delta << std::endl;
-  std::cout << " * delta rot z: " << checker_.rot_z_delta << std::endl;
-  std::cout << " * delta dist: " << checker_.distance_tot << std::endl;
+//   std::cout << " * delta rot x: " << checker_.rot_x_delta << std::endl;
+//   std::cout << " * delta rot y: " << checker_.rot_y_delta << std::endl;
+//   std::cout << " * delta rot z: " << checker_.rot_z_delta << std::endl;
+//   std::cout << " * delta dist: " << checker_.distance_tot << std::endl;
 
-  return true;
-}
+//   return true;
+// }

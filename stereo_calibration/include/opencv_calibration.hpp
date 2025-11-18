@@ -74,18 +74,27 @@ struct CameraCalib{
 
     float calibrate(const std::vector<std::vector<cv::Point3f>> &object_points,
                     const std::vector<std::vector<cv::Point2f>> &image_points,
-                    const cv::Size &image_size, int flags) {
-      float rms = 0.0;
+                    const cv::Size &image_size, int flags, bool verbose) {
+      float rms = -1.0f;
       std::vector<cv::Mat> rvec, tvec;
       if (disto_model_RadTan) {
         if (D.cols >= 8) flags += cv::CALIB_RATIONAL_MODEL;
         rms = cv::calibrateCamera(object_points, image_points, image_size, K, D,
                                   rvec, tvec, flags);
-      } else
+      } else {
         rms = cv::fisheye::calibrate(
             object_points, image_points, image_size, K, D, rvec, tvec,
             flags + cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC +
                 cv::fisheye::CALIB_FIX_SKEW);
+      }
+
+      if (verbose) {
+        std::cout << " * Intrinsic matrix K:" << std::endl << K << std::endl;
+        std::cout << " * Distortion coefficients D:" << std::endl
+                  << D << std::endl;
+        std::cout << " * Re-projection error (RMS): " << rms << std::endl;
+      }
+
       return rms;
     }
 };
@@ -128,19 +137,29 @@ struct StereoCalib{
         const std::vector<std::vector<cv::Point3f>> &object_points,
         const std::vector<std::vector<cv::Point2f>> &image_points_left,
         const std::vector<std::vector<cv::Point2f>> &image_points_right,
-        const cv::Size &image_size, int flags) {
+        const cv::Size &image_size, int flags, bool verbose) {
       float rms = 0.0;
       cv::Mat E, F;
-      if (left.disto_model_RadTan && right.disto_model_RadTan)
+      if (left.disto_model_RadTan && right.disto_model_RadTan) {
         rms = cv::stereoCalibrate(object_points, image_points_left,
                                   image_points_right, left.K, left.D, right.K,
                                   right.D, image_size, R, T, E, F, flags);
-      else
+      } else {
         rms = cv::fisheye::stereoCalibrate(
             object_points, image_points_left, image_points_right, left.K,
             left.D, right.K, right.D, image_size, R, T,
             flags + cv::fisheye::CALIB_CHECK_COND);
+      }
+
       cv::Rodrigues(R, Rv);
+
+      if (verbose) {
+        std::cout << " * Rotation matrix R:" << std::endl << R << std::endl;
+        std::cout << " * Rotation vector Rv:" << std::endl << Rv << std::endl;
+        std::cout << " * Translation vector T:" << std::endl << T << std::endl;
+        std::cout << " * Re-projection error (RMS): " << rms << std::endl;
+      }
+
       return rms;
     }
 };
@@ -148,4 +167,4 @@ struct StereoCalib{
 int calibrate(int img_count, const std::string &folder, StereoCalib &raw_data,
               int target_w, int target_h, float square_size, int serial,
               bool save_calib_mono = false, bool use_intrinsic_prior = false,
-              float max_repr_error = 0.5f);
+              float max_repr_error = 0.5f, bool verbose=false);

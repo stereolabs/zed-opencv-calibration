@@ -3,7 +3,7 @@
 int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
               int target_w, int target_h, float square_size, int serial,
               bool save_calib_mono, bool use_intrinsic_prior,
-              float max_repr_error) {
+              float max_repr_error, bool verbose) {
   std::vector<cv::Mat> left_images, right_images;
 
   /// Read images
@@ -33,8 +33,10 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     }
   }
 
-  std::cout << std::endl
-            << "\t" << left_images.size() << " images opened" << std::endl;
+  if (verbose) {
+    std::cout << std::endl
+              << "\t" << left_images.size() << " images opened" << std::endl;
+  }
 
   // Define object points of the target
   std::vector<cv::Point3f> pattern_points;
@@ -72,7 +74,7 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
       pts_r.push_back(pts_r_);
       object_points.push_back(pattern_points);
     } else {
-      std::cout << "No target detected on image " << i << std::endl;
+      std::cout << "No target detected on  image " << i << std::endl;
     }
   }
 
@@ -89,11 +91,19 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     std::cout << " * Enough points detected" << std::endl;
 
     auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
-    auto rms_l =
-        calib_data.left.calibrate(object_points, pts_l, imageSize, flags);
-    auto rms_r =
-        calib_data.right.calibrate(object_points, pts_r, imageSize, flags);
-    std::cout << " * Reprojection error: " << std::endl;
+    if (verbose) {
+      std::cout << "Left camera calibration: " << std::endl;
+    }
+    auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize,
+                                           flags, verbose);
+
+    if (verbose) {
+      std::cout << "Right camera calibration: " << std::endl;
+    }
+    auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize,
+                                            flags, verbose);
+
+    std::cout << " * Reprojection errors: " << std::endl;
     std::cout << "   * Left " << rms_l
               << (rms_l > max_repr_error ? " !!! TOO HIGH !!!" : "")
               << std::endl;
@@ -101,9 +111,12 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
               << (rms_r > max_repr_error ? " !!! TOO HIGH !!!" : "")
               << std::endl;
 
+    if (verbose) {
+      std::cout << "Stereo calibration: " << std::endl;
+    }
     auto err = calib_data.calibrate(
         object_points, pts_l, pts_r, imageSize,
-        cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY);
+        cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
     std::cout << "   * Stereo " << err
               << (err > max_repr_error ? " !!! TOO HIGH !!!" : "") << std::endl;
 
