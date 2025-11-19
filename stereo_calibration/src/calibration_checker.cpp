@@ -172,7 +172,7 @@ bool CalibrationChecker::isGoodSample(
     return true;  // First sample is always good
   }
 
-  auto check_distance = [this](const DetectedBoardParams& p1,
+  auto is_different = [this](const DetectedBoardParams& p1,
                            const DetectedBoardParams& p2) -> bool {
     // Check that at least one parameter differs by at least 10% from all the stored samples
     float size_diff = std::abs(p1.size - p2.size) / std::max(p1.size, p2.size);
@@ -181,25 +181,25 @@ bool CalibrationChecker::isGoodSample(
         std::abs(p1.pos.x - p2.pos.x) / std::max(p1.pos.x, p2.pos.x);
     float pos_y_diff =
         std::abs(p1.pos.y - p2.pos.y) / std::max(p1.pos.y, p2.pos.y);
-
-    if (verbose_) {
-      std::cout << "  Differences: SizeDiff=" << size_diff
-                << ", SkewDiff=" << skew_diff << ", PosXDiff=" << pos_x_diff
-                << ", PosYDiff=" << pos_y_diff << std::endl;
-    }
-
-    const float diff_thresh = 0.1f;
+    
+    const float diff_thresh = 0.1f; // 10% difference threshold
 
     if (size_diff > diff_thresh || skew_diff > diff_thresh ||
         pos_x_diff > diff_thresh || pos_y_diff > diff_thresh) {
-      return true;
+      return true; // At least one parameter is sufficiently different
     }
-    return false;  // Too similar to all existing samples
+
+    std::cout << std::setprecision(3)
+              << "Size diff: " << size_diff << ", "
+              << "Skew diff: " << skew_diff << ", "
+              << "PosX diff: " << pos_x_diff << ", "
+              << "PosY diff: " << pos_y_diff << "" << std::endl;
+
+    return false;  // All parameters are too similar
   };
 
   for (auto& stored_params : paramDb_) {
-    bool is_different = check_distance(params, stored_params);
-    if (!is_different) {
+    if (!is_different(params, stored_params)) {
       std::cout << "  Rejected: Too similar to an existing sample" << std::endl;
       return false;
     }
