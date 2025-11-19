@@ -35,7 +35,8 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   if (verbose) {
     std::cout << std::endl
-              << "\t" << left_images.size() << " images opened" << std::endl;
+              << "\t" << left_images.size() << " samples collected"
+              << std::endl;
   }
 
   // Define object points of the target
@@ -88,7 +89,7 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
               << std::endl;
     return EXIT_FAILURE;
   } else {
-    std::cout << " * Enough points detected" << std::endl;
+    std::cout << " * Enough valid samples: " << pts_l.size() << std::endl;
 
     auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
     if (verbose) {
@@ -103,6 +104,13 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize,
                                             flags, verbose);
 
+    if (verbose) {
+      std::cout << "Stereo calibration: " << std::endl;
+    }
+    auto err = calib_data.calibrate(
+        object_points, pts_l, pts_r, imageSize,
+        cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
+
     std::cout << " * Reprojection errors: " << std::endl;
     std::cout << "   * Left " << rms_l
               << (rms_l > max_repr_error ? " !!! TOO HIGH !!!" : "")
@@ -110,13 +118,6 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     std::cout << "   * Right " << rms_r
               << (rms_r > max_repr_error ? " !!! TOO HIGH !!!" : "")
               << std::endl;
-
-    if (verbose) {
-      std::cout << "Stereo calibration: " << std::endl;
-    }
-    auto err = calib_data.calibrate(
-        object_points, pts_l, pts_r, imageSize,
-        cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
     std::cout << "   * Stereo " << err
               << (err > max_repr_error ? " !!! TOO HIGH !!!" : "") << std::endl;
 

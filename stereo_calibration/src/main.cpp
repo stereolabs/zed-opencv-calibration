@@ -21,50 +21,36 @@ constexpr float square_size = 25.4;  // mm
 
 std::string image_folder = "zed-images/";
 
-// struct extrinsic_checker {
-//   float rot_x_min;
-//   float rot_y_min;
-//   float rot_z_min;
-//   float rot_x_max;
-//   float rot_y_max;
-//   float rot_z_max;
-
-//   float rot_x_delta;
-//   float rot_y_delta;
-//   float rot_z_delta;
-
-//   float d_min;
-//   float d_max;
-//   float distance_tot;
-// };
-
+// Argument parsing helper
 std::map<std::string, std::string> parseArguments(int argc, char* argv[]);
-// bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z,
-//                   float distance, int fontSize);
-// float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts,
-//                     const cv::Size& imgSize);
-// bool updateRT(extrinsic_checker& checker_, cv::Mat r, cv::Mat t,
-//               bool first_time);
+
+// Coverage indicator fill helpers
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator, float norm_x,
+                                float norm_y, float norm_size);
+void applyCoverageIndicatorOverlay(cv::Mat& image,
+                                   const cv::Mat& coverage_indicator);
 
 /// Rendering
-constexpr int text_area_height = 200;
+constexpr int text_area_height = 210;
+const cv::Size display_size(720, 404);  // Size of the rendered images
 
 /// Calibration condition
-// const float min_coverage = 90;          // in percentage
-// const float min_rotation = 60;          // in degrees
-// const float acceptable_rotation = 50;   // in degrees
-// const float min_distance = 300;         // in mm
-// const float acceptable_distance = 200;  // in mm
-const float max_repr_error = 0.5;       // in pixels
+const float max_repr_error = 0.5;  // in pixels
+const int min_samples = 30;
+const int max_samples = 60;
+const float min_x_coverage =
+    0.65f;  // Checkerboard X position should cover 65% of the image width
+const float min_y_coverage =
+    0.65f;  // Checkerboard Y position should cover 65% of the image height
+const float min_size_variation =
+    0.4f;  // Checkerboard size variation should be at least 40%
+const float min_skew_variation =
+    0.6f;  // Checkerboard skew variation should be at least 70%
 
 // Debug
-bool verbose = true;
-int sdk_verbose = 1;
+bool verbose = false;
+int sdk_verbose = 0;
 
-//std::vector<std::vector<cv::Point2f>> pts_detected;
-
-std::vector<cv::Point2f> square_valid;
-int bucketsize = 480;
 const int MinPts = 10;
 const int MaxPts = 90;
 const cv::Scalar info_color = cv::Scalar(50, 205, 50);
@@ -160,7 +146,14 @@ struct Args {
 
 int main(int argc, char* argv[]) {
   // Setup the calibration checker
-  CalibrationChecker checker(cv::Size(target_w, target_h), square_size, verbose);
+  const DetectedBoardParams idealParams = {
+      cv::Point2f(min_x_coverage, min_y_coverage), min_size_variation,
+      min_skew_variation};
+  CalibrationChecker checker(cv::Size(target_w, target_h), square_size,
+                             min_samples, max_samples, idealParams, verbose);
+  // Coverage scores
+  float size_score = 0.0f, skew_score = 0.0f, pos_score_x = 0.0f,
+        pos_score_y = 0.0f;
 
   Args args;
   args.parse(argc, argv);
@@ -281,19 +274,11 @@ int main(int argc, char* argv[]) {
   auto rgb_r = cv::Mat(camera_resolution.height, camera_resolution.width,
                        CV_8UC4, zed_imageR.getPtr<sl::uchar1>());
 
-  // Number of area to fill horizontally
-  bucketsize = camera_resolution.width / 6;
-
-  // bool frames_rot_good=true;
-  cv::Mat blank = cv::Mat::zeros(camera_resolution.height,
-                                 camera_resolution.width, CV_8UC1);
+  cv::Mat coverage_indicator =
+      cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
 
   cv::Mat rgb_d, rgb2_d, rgb_d_fill, rgb2_d_fill, display, rendering_image;
 
-  // extrinsic_checker checker;
-  // float cov_left = 1.0;
-  // bool angle_clb = false;
-  // bool first_angle_check = true;
   bool acquisition_completed = false;
   std::vector<cv::Point3f> pts_obj_;
   for (int i = 0; i < target_h; i++) {
@@ -315,17 +300,11 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  // Data for initial intrinsic estimation
-  //std::vector<std::vector<cv::Point2f>> pts_init_im_l, pts_init_im_r;
-  //std::vector<std::vector<cv::Point3f>> pts_init_obj;
-
-  // Size of the rendered images
-  const cv::Size display_size(720, 404);
-
   char key = ' ';
   int image_count = 0;
   // bool coverage_mode = false;
   bool missing_target_on_last_pics = false;
+  bool low_target_variability_on_last_pics = false;
 
   const std::string window_name = "ZED Calibration";
   cv::namedWindow(window_name, cv::WINDOW_KEEPRATIO);
@@ -345,37 +324,9 @@ int main(int argc, char* argv[]) {
 
       cv::resize(rgb_l, rgb_d, display_size);
       cv::resize(rgb_r, rgb2_d, display_size);
-
-      // if (!angle_clb) {
-      //     cv::Mat rgb_with_lack_of_pts;
-      //     std::vector<cv::Mat> channels;
-      //     cv::split(rgb_l, channels);
-      //     blank.setTo(0);
-      //     float x_end, y_end;
-      //     float x_max = 0;
-      //     for (int i = 0; i < square_valid.size(); i++) {
-      //         if(square_valid.at(i).x + bucketsize > blank.size[1])
-      //             x_end = blank.size[1];
-      //         else
-      //             x_end = square_valid.at(i).x + bucketsize;
-      //         if(square_valid.at(i).y + bucketsize > blank.size[0])
-      //             y_end = blank.size[0];
-      //         else
-      //             y_end = square_valid.at(i).y + bucketsize;
-      //         if(square_valid.at(i).x>x_max)
-      //             x_max = square_valid.at(i).x;
-      //         cv::rectangle(blank, square_valid.at(i), cv::Point(x_end,
-      //         y_end), cv::Scalar(128, 0, 128), -1);
-      //     }
-      //     channels[0] = channels[0] - blank;
-      //     channels[2] = channels[2] - blank;
-      //     cv::merge(channels, rgb_with_lack_of_pts);
-      //     cv::resize(rgb_with_lack_of_pts, rgb_d_fill, display_size);
-      // } else {
-      //
-      // }
-
       cv::resize(rgb_l, rgb_d_fill, display_size);
+
+      applyCoverageIndicatorOverlay(rgb_d_fill, coverage_indicator);
 
       std::vector<cv::Point2f> pts_l, pts_r;
       bool found_l = false;
@@ -399,27 +350,6 @@ int main(int argc, char* argv[]) {
 
       cv::Mat text_info = cv::Mat::ones(
           cv::Size(display.size[1], text_area_height), display.type());
-
-      // if (angle_clb) {
-      //     coverage_mode = false;
-      //     bool ready_to_calibrate = writeRotText(text_info,
-      //     checker.rot_x_delta, checker.rot_y_delta, checker.rot_z_delta,
-      //     checker.distance_tot, 1); if(ready_to_calibrate) {
-      //       if (image_count >=
-      //           MIN_IMAGE +
-      //               10) {  // Add 10 extra images for better results
-      //         acquisition_completed = true;
-      //       } else {
-      //         std::stringstream ss;
-      //         ss << "Not enough images for calibration saved. Missing "
-      //            << ((MIN_IMAGE + 10) - image_count) << " images.";
-      //         cv::putText(text_info, ss.str(),
-      //                     cv::Point(10, display.size[0] + 140),
-      //                     cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
-      //       }
-      //     }
-      // }
-
       cv::vconcat(display, text_info, rendering_image);
 
       if (acquisition_completed) {
@@ -427,42 +357,82 @@ int main(int argc, char* argv[]) {
                     "Acquisition completed! Wait for the calibration "
                     "computation to complete...",
                     cv::Point(20, display.size[0] + 50),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
-      } else {
-        if (missing_target_on_last_pics)
-          cv::putText(rendering_image, "Missing target on one of the images.",
-                      cv::Point(30, display.size[0] + 170),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.8, warn_color, 2);
-
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7, info_color, 2);
         cv::putText(rendering_image,
-                    "Press 's' or the spacebar to save the current frames when "
-                    "the target is visible in both images.",
-                    cv::Point(10, display.size[0] + 25),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
-        // if(coverage_mode) {
-        //     std::stringstream ss_cov;
-        //     ss_cov << "Coverage: " << std::fixed << std::setprecision(2) <<
-        //     (1-cov_left)*100 << "%/" << min_coverage << "%";
-        //     cv::putText(rendering_image, ss_cov.str(), cv::Point(10,
-        //     display.size[0]+55), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color,
-        //     1); cv::putText(rendering_image, "Keep going until the green
-        //     covers the image, it represents coverage", cv::Point(10,
-        //     display.size[0]+85), cv::FONT_HERSHEY_SIMPLEX, 0.6, info_color,
-        //     1);
-        // }
-        // if(!frames_rot_good) {
-        //     cv::putText(rendering_image, "!!! Do not rotate the checkerboard
-        //     more than 45 deg around Z !!!",
-        //         cv::Point(600, display.size[0]+50), cv::FONT_HERSHEY_SIMPLEX,
-        //         0.8, warn_color, 2);
-        // }
+                    "Follow the console log for calibration progress details.",
+                    cv::Point(20, display.size[0] + 80),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7, info_color, 2);
+      } else {
+        if (missing_target_on_last_pics ||
+            low_target_variability_on_last_pics) {
+          cv::putText(rendering_image, "Frames not stored for calibration.",
+                      cv::Point(display.size[1] / 2, display.size[0] + 110),
+                      cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
+        }
+
+        if (missing_target_on_last_pics) {
+          cv::putText(rendering_image,
+                      " * Missing target on one of the cameras.",
+                      cv::Point(display.size[1] / 2, display.size[0] + 140),
+                      cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
+        }
+
+        if (low_target_variability_on_last_pics) {
+          cv::putText(rendering_image,
+                      " * Target too similar to a previous acquisition.",
+                      cv::Point(display.size[1] / 2, display.size[0] + 140),
+                      cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
+        }
+
+        cv::putText(
+            rendering_image,
+            "Press 's' or the spacebar to store the current frames when "
+            "the target is visible in both images.",
+            cv::Point(10, display.size[0] + 25), cv::FONT_HERSHEY_SIMPLEX, 0.7,
+            info_color, 1);
+
+        std::stringstream ss_status;
+        ss_status << " * Horizontal coverage: " << std::fixed
+                  << std::setprecision(2) << pos_score_x * 100.0f << "%";
+        cv::putText(rendering_image, ss_status.str(),
+                    cv::Point(10, display.size[0] + 55),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                    (pos_score_x > 1.0f ? info_color : warn_color), 1);
+        ss_status.str("");
+        ss_status << " * Vertical coverage: " << std::fixed
+                  << std::setprecision(2) << pos_score_y * 100.0f << "%";
+        cv::putText(rendering_image, ss_status.str(),
+                    cv::Point(10, display.size[0] + 85),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                    (pos_score_y > 1.0f ? info_color : warn_color), 1);
+        ss_status.str("");
+        ss_status << " * Checkerboard sizes: " << std::fixed
+                  << std::setprecision(2) << size_score * 100.0f << "%";
+        cv::putText(rendering_image, ss_status.str(),
+                    cv::Point(10, display.size[0] + 115),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                    (size_score > 1.0f ? info_color : warn_color), 1);
+        ss_status.str("");
+        ss_status << " * Checkerboard skews: " << std::fixed
+                  << std::setprecision(2) << skew_score * 100.0f << "%";
+        cv::putText(rendering_image, ss_status.str(),
+                    cv::Point(10, display.size[0] + 145),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                    (skew_score > 1.0f ? info_color : warn_color), 1);
 
         std::stringstream ss_img_count;
-        ss_img_count << "Frame saved: " << image_count;
+        ss_img_count << " * Sample saved: " << image_count;
         cv::putText(rendering_image, ss_img_count.str(),
-                    cv::Point((display.size[1] + display_size.width) / 2,
-                              display.size[0] + 170),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.8, info_color, 2);
+                    cv::Point(10, display.size[0] + 175),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                    (image_count > min_samples ? info_color : warn_color), 1);
+
+        cv::putText(rendering_image,
+                    "Move the target horizontally, vertically, forward "
+                    "and backward, and rotate it to improve "
+                    "coverage and variability scores. Framerate can be low if no target is detected.",
+                    cv::Point(10, display.size[0] + 200),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, warn_color, 1);
       }
 
       cv::imshow(window_name, rendering_image);
@@ -473,23 +443,18 @@ int main(int argc, char* argv[]) {
       }
 
       if ((key == 's' || key == 'S') || key == ' ') {
-        // if (!angle_clb) {
-        //     coverage_mode = true;
-        // }
-
         missing_target_on_last_pics = !found_r || !found_l;
 
         if (found_l && found_r) {
           scaleKP(pts_l, display_size,
                   cv::Size(camera_resolution.width, camera_resolution.height));
-          // pts_init_im_l.push_back(pts_l);
           scaleKP(pts_r, display_size,
                   cv::Size(camera_resolution.width, camera_resolution.height));
-          // pts_init_im_r.push_back(pts_r);
-          // pts_init_obj.push_back(pts_obj_);
 
           if (checker.testSample(pts_l, cv::Size(camera_resolution.width,
                                                  camera_resolution.height))) {
+            low_target_variability_on_last_pics = false;
+
             std::cout << " * Valid sample detected. Total valid samples: "
                       << checker.getValidSampleCount() << std::endl;
 
@@ -503,87 +468,27 @@ int main(int argc, char* argv[]) {
             std::cout << " * Images saved" << std::endl;
             image_count++;
 
-            float size_score, skew_score, pos_score_x, pos_score_y;
-            if( checker.evaluateSampleCollectionStatus(size_score, skew_score,
-                                                   pos_score_x, pos_score_y) ) {
-              std::cout << ">>> Sample collection status: COMPLETE <<<" << std::endl;
-              acquisition_completed = true;}
+            if (checker.evaluateSampleCollectionStatus(
+                    size_score, skew_score, pos_score_x, pos_score_y)) {
+              std::cout << ">>> Sample collection status: COMPLETE <<<"
+                        << std::endl;
+              acquisition_completed = true;
+            }
 
+            // Add the new checkerboard position to the coverage indicator
+            float norm_x = checker.getLastDetectedBoardParams().pos.x;
+            float norm_y = checker.getLastDetectedBoardParams().pos.y;
+            float norm_size = checker.getLastDetectedBoardParams().size;
+            addNewCheckerboardPosition(coverage_indicator, norm_x, norm_y, norm_size);
           } else {
             std::cout << " ! Sample detected but not valid. Please check the "
                          "checkerboard position and angle."
                       << std::endl;
+            low_target_variability_on_last_pics = true;
           }
-
-          // if (need_intrinsic_estimation) {
-          //   // wait 5 images before running the estimate
-          //   if (pts_init_im_l.size() >= 5) {
-          //     calib.left.K = cv::initCameraMatrix2D( pts_init_obj,
-          //     pts_init_im_l, cv::Size(camera_resolution.width,
-          //     camera_resolution.height)); calib.right.K =
-          //     cv::initCameraMatrix2D( pts_init_obj, pts_init_im_r,
-          //     cv::Size(camera_resolution.width, camera_resolution.height));
-          //     std::cout << "Intrinsic estimation done:" << std::endl;
-          //     std::cout << "Left K: " << std::endl << calib.left.K <<
-          //     std::endl; std::cout << "Right K: " << std::endl <<
-          //     calib.right.K << std::endl; need_intrinsic_estimation = false;
-          //   }
-          // } else {
-          //   if (!angle_clb) {
-          //     pts_detected.push_back(pts_l);
-          //     cov_left = CheckCoverage(
-          //         pts_detected, cv::Size(camera_resolution.width,
-          //                                camera_resolution.height));
-          //     std::cout << "Coverage : " << (1 - cov_left) * 100
-          //               << "%/" << min_coverage << "%" << std::endl;
-          //     if (cov_left < ((100.0 - min_coverage) / 100.0)) {
-          //       // Coverage Complete. Start angle calibration
-          //       std::cout << "Coverage complete. Start angle "
-          //                    "calibration."
-          //                 << std::endl;
-
-          //       // Estimate intrinsic with a better image coverage
-          //       need_intrinsic_estimation = true;
-
-          //       angle_clb = true;
-          //     }
-          //   } else {
-          //     cv::Mat rvec(1, 3, CV_32FC1);
-          //     cv::Mat tvec(1, 3, CV_32FC1);
-          //     std::cout << "Before undistort" << pts_l << std::endl;
-          //     auto undist_pts = calib.left.undistortPoints(pts_l);
-          //     std::cout << "After undistort" << undist_pts
-          //               << std::endl;
-          //     cv::Mat empty_dist;
-          //     bool found_ = cv::solvePnP(
-          //         pts_obj_, undist_pts, calib.left.K, empty_dist,
-          //         rvec, tvec, false, cv::SOLVEPNP_EPNP);
-          //     if (found_) {
-          //       frames_rot_good =
-          //           updateRT(checker, rvec, tvec, first_angle_check);
-          //       if (frames_rot_good) {
-          //         pts_detected.push_back(pts_l);
-          //         first_angle_check = false;
-          //       }
-          //     }
-          //   }
-          // }
-
-          // if (frames_rot_good) {
-          //   // saves the images
-          //   cv::imwrite(image_folder + "image_left_" +
-          //                   std::to_string(image_count) + ".png",
-          //               rgb_l);
-          //   cv::imwrite(image_folder + "image_right_" +
-          //                   std::to_string(image_count) + ".png",
-          //               rgb_r);
-          //   std::cout << " * Images saved" << std::endl;
-          //   image_count++;
-          // }
         }
       }
     }
-    // sl::sleep_ms(10);
   }
 
   // Add "Calibration in progress" message
@@ -600,265 +505,20 @@ int main(int argc, char* argv[]) {
   return EXIT_SUCCESS;
 }
 
-// Function to perform linear interpolation
-inline float interpolate(float x, float x0, float x1, float y0 = 0,
-                         float y1 = 100) {
-  float interpolatedValue = y0 + (x - x0) * (y1 - y0) / (x1 - x0);
-  interpolatedValue =
-      (interpolatedValue < y0)
-          ? y0
-          : ((interpolatedValue > y1) ? y1 : interpolatedValue);  // clamp
-  return interpolatedValue;
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator, float norm_x,
+                                float norm_y, float norm_size) {
+  int x = static_cast<int>(norm_x * coverage_indicator.cols);
+  int y = static_cast<int>(norm_y * coverage_indicator.rows);
+  int size = static_cast<int>(norm_size * 20.0f);
+  cv::circle(coverage_indicator, cv::Point(x, y), size,
+             cv::Scalar(255, 255, 255), -1);
 }
 
-// bool writeRotText(cv::Mat& image, float rot_x, float rot_y, float rot_z,
-//                   float distance, int fontSize) {
-//   bool status = false;
-//   // Define text from rotation and distance
-
-//   // Convert float values to string with two decimal places
-//   std::stringstream ss_rot_x, ss_rot_y, ss_rot_z, ss_distance;
-
-//   int rot_x_idx = interpolate(rot_x, 0, min_rotation);
-//   int rot_y_idx = interpolate(rot_y, 0, min_rotation);
-//   int rot_z_idx = interpolate(rot_z, 0, min_rotation);
-//   int distance_idx = interpolate(distance, 0, min_distance);
-
-//   ss_rot_x << "Rotation X: " << std::fixed << std::setprecision(1) << rot_x_idx
-//            << "%   ";
-//   ss_rot_y << " / Rotation Y: " << std::fixed << std::setprecision(1)
-//            << rot_y_idx << "%   ";
-//   ss_rot_z << " / Rotation Z: " << std::fixed << std::setprecision(1)
-//            << rot_z_idx << "%   ";
-//   ss_distance << " / Distance: " << std::fixed << std::setprecision(1)
-//               << distance_idx << "%";
-
-//   std::string text1 = ss_rot_x.str();
-//   std::string text2 = ss_rot_y.str();
-//   std::string text3 = ss_rot_z.str();
-//   std::string text4 = ss_distance.str();
-
-//   std::string text = text1 + text2 + text3 + text4;
-
-//   cv::Scalar color1, color2, color3, color4;
-
-//   // Condition on colors
-//   if (rot_x > min_rotation)
-//     color1 = cv::Scalar(0, 255, 0);
-//   else if (rot_x >= acceptable_rotation)
-//     color1 = warn_color;
-//   else
-//     color1 = cv::Scalar(0, 0, 255);
-
-//   if (rot_y > min_rotation)
-//     color2 = cv::Scalar(0, 255, 0);
-//   else if (rot_y >= acceptable_rotation)
-//     color2 = warn_color;
-//   else
-//     color2 = cv::Scalar(0, 0, 255);
-
-//   if (rot_z > min_rotation)
-//     color3 = cv::Scalar(0, 255, 0);
-//   else if (rot_z >= acceptable_rotation)
-//     color3 = warn_color;
-//   else
-//     color3 = cv::Scalar(0, 0, 255);
-
-//   if (distance > min_distance)
-//     color4 = cv::Scalar(0, 255, 0);
-//   else if (distance >= acceptable_distance)
-//     color4 = warn_color;
-//   else
-//     color4 = cv::Scalar(0, 0, 255);
-
-//   // Get image dimensions
-//   int width = image.cols;
-//   int height = image.rows;
-
-//   // Calculate text size
-//   int baseline = 0;
-//   cv::Size textSize =
-//       cv::getTextSize(text, cv::FONT_HERSHEY_SIMPLEX, fontSize, 1, &baseline);
-
-//   // Calculate text position
-//   int x = (width - textSize.width) / 2;
-//   int y = (height + textSize.height) / 2;
-
-//   status = (rot_x > min_rotation) && (rot_y > min_rotation) &&
-//            (rot_z > min_rotation) && (distance > min_distance);
-
-//   // Draw text on image with different colors
-//   cv::putText(image, text1, cv::Point(x, y), cv::FONT_HERSHEY_SIMPLEX, fontSize,
-//               color1, 2);
-//   cv::putText(image, text2, cv::Point(x + textSize.width / 4, y),
-//               cv::FONT_HERSHEY_SIMPLEX, fontSize, color2, 2);
-//   cv::putText(image, text3, cv::Point(x + textSize.width / 2, y),
-//               cv::FONT_HERSHEY_SIMPLEX, fontSize, color3, 2);
-//   cv::putText(image, text4, cv::Point(x + 3 * textSize.width / 4, y),
-//               cv::FONT_HERSHEY_SIMPLEX, fontSize, color4, 2);
-
-//   return status;
-// }
-
-// bool CheckBucket(int min_h, int max_h, int min_w, int max_w, bool min,
-//                  std::vector<std::vector<cv::Point2f>> pts) {
-//   int count = 0;
-
-//   for (int i = 0; i < pts.size(); i++) {
-//     for (int j = 0; j < pts.at(i).size(); j++) {
-//       if ((pts.at(i).at(j).x < max_w) && (pts.at(i).at(j).x > min_w)) {
-//         if ((pts.at(i).at(j).y < max_h) && (pts.at(i).at(j).y > min_h)) {
-//           count++;
-//         }
-//       }
-//     }
-//   }
-
-//   if (min) {
-//     if (count > MinPts)
-//       return true;
-//     else
-//       return false;
-//   } else {
-//     if (count < MaxPts)
-//       return true;
-//     else
-//       return false;
-//   }
-// }
-
-// float CheckCoverage(const std::vector<std::vector<cv::Point2f>>& pts,
-//                     const cv::Size& imgSize) {
-//   int min_h_ = 0;
-//   int max_h_ = bucketsize;
-//   float tot = 0;
-//   float error = 0;
-
-//   while (min_h_ < imgSize.height) {
-//     if (max_h_ > imgSize.height) max_h_ = imgSize.height;
-//     int min_w_ = 0;
-//     int max_w_ = bucketsize;
-//     while (min_w_ < imgSize.width) {
-//       if (max_w_ > imgSize.width) max_w_ = imgSize.width;
-//       if (!CheckBucket(min_h_, max_h_, min_w_, max_w_, true, pts)) {
-//         error++;
-//       } else
-//         square_valid.push_back(cv::Point(min_w_, min_h_));
-//       min_w_ += bucketsize;
-//       max_w_ += bucketsize;
-//       tot++;
-//     }
-//     min_h_ += bucketsize;
-//     max_h_ += bucketsize;
-//   }
-//   return error / tot;
-// }
-
-// // Convert rotation vector (rvec) to Euler angles (roll, pitch, yaw) in radians
-// cv::Vec3d rotationMatrixToEulerAngles(const cv::Mat& R) {
-//   // sy is the magnitude in the X-Y plane for pitch calculation
-//   float sy = std::sqrt(R.at<float>(0, 0) * R.at<float>(0, 0) +
-//                        R.at<float>(1, 0) * R.at<float>(1, 0));
-//   bool singular = sy < 1e-6;
-
-//   float roll, pitch, yaw;
-//   if (!singular) {
-//     // Following OpenCV camera frame axis convention:
-//     // roll around Z axis
-//     roll = std::atan2(R.at<float>(1, 0),
-//                       R.at<float>(0, 0));        // rotation about Z (roll)
-//     pitch = std::atan2(-R.at<float>(2, 0), sy);  // rotation about X (pitch)
-//     yaw = std::atan2(R.at<float>(2, 1),
-//                      R.at<float>(2, 2));  // rotation about Y (yaw)
-//   } else {
-//     // Gimbal lock case
-//     roll = std::atan2(-R.at<float>(1, 2), R.at<float>(1, 1));
-//     pitch = std::atan2(-R.at<float>(2, 0), sy);
-//     yaw = 0;
-//   }
-//   return cv::Vec3d(roll, pitch, yaw);
-// }
-
-// bool updateRT(extrinsic_checker& checker_, cv::Mat rvec, cv::Mat tvec,
-//               bool first_time) {
-//   std::cout << "************************************************" << std::endl;
-//   std::cout << " * Current rvec: [" << rvec.at<float>(0) << ", "
-//             << rvec.at<float>(1) << ", " << rvec.at<float>(2) << "]"
-//             << std::endl;
-//   std::cout << " * Current tvec: [" << tvec.at<float>(0) << ", "
-//             << tvec.at<float>(1) << ", " << tvec.at<float>(2) << "]"
-//             << std::endl;
-
-//   // Convert rotation vector to rotation matrix
-//   cv::Mat R;
-//   cv::Rodrigues(rvec, R);
-
-//   cv::Vec3d eulerAngles = rotationMatrixToEulerAngles(R);
-
-//   // Convert radians to degrees
-//   float rz = eulerAngles[0] * 180.0 / M_PI;
-//   float rx = eulerAngles[1] * 180.0 / M_PI;
-//   float ry = eulerAngles[2] * 180.0 / M_PI;
-
-//   std::cout << "Roll: " << rz << " Pitch: " << rx << " Yaw: " << ry
-//             << std::endl;
-
-//   float distance = sqrt(pow(tvec.at<float>(0), 2) + pow(tvec.at<float>(1), 2) +
-//                         pow(tvec.at<float>(2), 2));
-//   std::cout << "Distance: " << distance << " mm" << std::endl;
-
-//   if (fabs(rz) > 45.0) {
-//     std::cerr << " * Images ignored: Rot Z > 45° [" << rz << "°]" << std::endl;
-//     return false;
-//   }
-
-//   if (first_time) {
-//     checker_.rot_x_min = rx;
-//     checker_.rot_y_min = ry;
-//     checker_.rot_z_min = rz;
-
-//     checker_.rot_x_max = rx;
-//     checker_.rot_y_max = ry;
-//     checker_.rot_z_max = rz;
-
-//     checker_.d_min = distance;
-//     checker_.d_max = distance;
-
-//     checker_.rot_x_delta = 0;
-//     checker_.rot_y_delta = 0;
-//     checker_.rot_z_delta = 0;
-//     checker_.distance_tot = 0;
-
-//     return true;
-//   }
-
-//   // check min
-//   if (checker_.rot_x_min > rx) checker_.rot_x_min = rx;
-//   if (checker_.rot_y_min > ry) checker_.rot_y_min = ry;
-//   if (checker_.rot_z_min > rz) checker_.rot_z_min = rz;
-
-//   // check max
-//   if (checker_.rot_x_max < rx) checker_.rot_x_max = rx;
-//   if (checker_.rot_y_max < ry) checker_.rot_y_max = ry;
-//   if (checker_.rot_z_max < rz) checker_.rot_z_max = rz;
-
-//   if (checker_.d_min > distance) {
-//     checker_.d_min = distance;
-//   }
-//   if (checker_.d_max < distance) {
-//     checker_.d_max = distance;
-//   }
-
-//   // compute deltas
-//   checker_.rot_x_delta = checker_.rot_x_max - checker_.rot_x_min;
-//   checker_.rot_y_delta = checker_.rot_y_max - checker_.rot_y_min;
-//   checker_.rot_z_delta = checker_.rot_z_max - checker_.rot_z_min;
-//   checker_.distance_tot = checker_.d_max - checker_.d_min;
-
-//   std::cout << " * delta rot x: " << checker_.rot_x_delta << std::endl;
-//   std::cout << " * delta rot y: " << checker_.rot_y_delta << std::endl;
-//   std::cout << " * delta rot z: " << checker_.rot_z_delta << std::endl;
-//   std::cout << " * delta dist: " << checker_.distance_tot << std::endl;
-
-//   return true;
-// }
+void applyCoverageIndicatorOverlay(cv::Mat& image,
+                                   const cv::Mat& coverage_indicator) {
+  std::vector<cv::Mat> channels;
+  cv::split(image, channels);
+  channels[2] = channels[2] - coverage_indicator;
+  channels[1] = channels[1] - coverage_indicator;
+  cv::merge(channels, image);
+}

@@ -8,8 +8,14 @@ constexpr size_t down_right = 2;
 constexpr size_t down_left = 3;
 
 CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
+                                       size_t min_samples, size_t max_samples,
+                                       DetectedBoardParams idealParams,
                                        bool verbose) {
   verbose_ = verbose;
+
+  // Calibration parameters
+  min_samples_ = min_samples;
+  max_samples_ = max_samples;
 
   // Initialize the board parameters
   board_.board_size = board_size;
@@ -176,7 +182,7 @@ bool CalibrationChecker::isGoodSample(
     float pos_y_diff =
         std::abs(p1.pos.y - p2.pos.y) / std::max(p1.pos.y, p2.pos.y);
 
-    const float threshold = 0.1f;
+    const float threshold = 0.05f;
 
     if (size_diff < threshold && skew_diff < threshold &&
         pos_x_diff < threshold && pos_y_diff < threshold) {
@@ -222,10 +228,6 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
     if (params.skew < min_skew) min_skew = params.skew;
     if (params.skew > max_skew) max_skew = params.skew;
   }
-
-  // Don't reward small size or skew
-  // min_size = 0.0f;
-  // min_skew = 0.0f;
 
   pos_score_x = std::min((max_px - min_px) / idealParams_.pos.x, 1.0f);
   pos_score_y = std::min((max_py - min_py) / idealParams_.pos.y, 1.0f);
@@ -273,4 +275,14 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
 
   std::cout << "Sample collection incomplete." << std::endl;
   return false;
+}
+
+const DetectedBoardParams& CalibrationChecker::getLastDetectedBoardParams()
+    const {
+  if (paramDb_.empty()) {
+    static DetectedBoardParams empty_params = {cv::Point2f(-1.0f, -1.0f), -1.0f,
+                                               -1.0f};
+    return empty_params;
+  }
+  return paramDb_.back();
 }

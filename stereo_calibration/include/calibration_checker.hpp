@@ -19,9 +19,25 @@ typedef struct _detected_board_params {
   float skew = -1.0f;  // Normalized skew of the checkerboard
 } DetectedBoardParams;
 
+// Constants
+const size_t DEFAULT_MIN_SAMPLES = 20;
+const size_t DEFAULT_MAX_SAMPLES = 50;
+const DetectedBoardParams DEFAULT_IDEAL_PARAMS = {
+    cv::Point2f(
+        0.65f,  // Checkerboard X position should cover 65% of the image width
+        0.65f   // Checkerboard Y position should cover 65% of the image height
+        ),
+    0.4f,  // Checkerboard size variation should be at least 40%
+    0.6f   // Checkerboard skew variation should be at least 70%
+};         // Ideal parameters for a good sample database
+
 class CalibrationChecker {
  public:
-  CalibrationChecker(cv::Size board_size, float square_size, bool verbose);
+  CalibrationChecker(cv::Size board_size, float square_size,
+                     size_t min_samples = DEFAULT_MIN_SAMPLES,
+                     size_t max_samples = DEFAULT_MAX_SAMPLES,
+                     DetectedBoardParams idealParams = DEFAULT_IDEAL_PARAMS,
+                     bool verbose = false);
   ~CalibrationChecker() = default;
 
   // Test if the detected corners form a valid sample
@@ -39,6 +55,9 @@ class CalibrationChecker {
   bool evaluateSampleCollectionStatus(float& size_score, float& skew_score,
                                       float& pos_score_x,
                                       float& pos_score_y) const;
+
+  // Retrieve the last detected board parameters
+  const DetectedBoardParams& getLastDetectedBoardParams() const;
 
  private:
   // Calculate the parameter of a detected checkerboard
@@ -70,18 +89,11 @@ class CalibrationChecker {
       validCorners_;  // All the corners associated to the single parameters in
                       // paramDb_
 
-  const DetectedBoardParams idealParams_ = {
-      cv::Point2f(
-          0.65f,  // Checkerboard X position should cover 65% of the image width
-          0.65f  // Checkerboard Y position should cover 65% of the image height
-          ),
-      0.4f,  // Checkerboard size variation should be at least 40%
-      0.6f   // Checkerboard skew variation should be at least 70%
-  };         // Ideal parameters for a good sample database
-  const size_t min_samples_ =
-      20;  // Minimum number of samples to consider the database complete
-  const size_t max_samples_ =
-      50;  // Maximum number of samples to consider the database complete (used if it's not possible to reach the ideal parameters)
+  DetectedBoardParams idealParams_ = DEFAULT_IDEAL_PARAMS;
+  size_t min_samples_ = DEFAULT_MIN_SAMPLES;  // Minimum number of samples to
+                                              // consider the database complete
+  size_t max_samples_ = DEFAULT_MAX_SAMPLES;  // Maximum number of samples to
+                                              // consider the database complete
 
   bool verbose_ = false;
 };
