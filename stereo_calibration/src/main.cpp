@@ -48,7 +48,7 @@ const float min_skew_variation =
     0.6f;  // Checkerboard skew variation should be at least 70%
 
 // Debug
-bool verbose = false;
+bool verbose = true;
 int sdk_verbose = 0;
 
 const int MinPts = 10;
