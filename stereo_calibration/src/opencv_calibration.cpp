@@ -2,7 +2,7 @@
 
 int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
               int target_w, int target_h, float square_size, int serial,
-              bool is_4k, bool save_calib_mono, bool use_intrinsic_prior,
+              bool is_dual_mono, bool is_4k, bool save_calib_mono, bool use_intrinsic_prior,
               float max_repr_error, bool verbose) {
   std::vector<cv::Mat> left_images, right_images;
 
@@ -160,11 +160,14 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
                 << opencv_file << " !!!" << std::endl;
     }
 
-    std::string zed_file = calib_data.saveCalibZED(serial, is_4k);
-    if (!zed_file.empty()) {
-      std::cout << " * ZED SDK calibration file saved: " << zed_file << std::endl;
-    } else {
-      std::cout << " !!! Failed to save ZED SDK calibration file " << zed_file << " !!!" << std::endl;
+    // SDK format is only supported for dual-mono setups
+    if (is_dual_mono) {
+      std::string zed_file = calib_data.saveCalibZED(serial, is_4k);
+      if (!zed_file.empty()) {
+        std::cout << " * ZED SDK calibration file saved: " << zed_file << std::endl;
+      } else {
+        std::cout << " !!! Failed to save ZED SDK calibration file " << zed_file << " !!!" << std::endl;
+      }
     }
   }
 

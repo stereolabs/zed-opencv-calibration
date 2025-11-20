@@ -30,7 +30,7 @@ void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
                                 float norm_y, float norm_size);
 void applyCoverageIndicatorOverlay(cv::Mat& image,
                                    const cv::Mat& coverage_indicator);
-void applyPosIndicatorOverlay(cv::Mat& image, const cv::Mat& pos_indicator);  
+void applyPosIndicatorOverlay(cv::Mat& image, const cv::Mat& pos_indicator);
 
 /// Rendering
 constexpr int text_area_height = 210;
@@ -44,10 +44,10 @@ const float min_x_coverage =
     0.7f;  // Checkerboard X position should cover 70% of the image width
 const float min_y_coverage =
     0.7f;  // Checkerboard Y position should cover 70% of the image height
-const float min_area_range =
-    0.4f;  // Checkerboard area range size should be at least 0.4 [min_area-max_area]
-const float min_skew_range =
-    0.5f;  // Checkerboard skew ange size should be at least 0.5 [min_skew-max_skew]
+const float min_area_range = 0.4f;  // Checkerboard area range size should be at
+                                    // least 0.4 [min_area-max_area]
+const float min_skew_range = 0.5f;  // Checkerboard skew ange size should be at
+                                    // least 0.5 [min_skew-max_skew]
 
 // Debug
 bool verbose = true;
@@ -159,6 +159,7 @@ int main(int argc, char* argv[]) {
         pos_score_y = 0.0f;
 
   // Flags
+  bool is_dual_mono_camera = false;
   bool is_4k_camera = false;
 
   Args args;
@@ -179,7 +180,8 @@ int main(int argc, char* argv[]) {
   sl::InitParameters init_params;
   init_params.depth_mode =
       sl::DEPTH_MODE::NONE;  // No depth required for calibration
-  init_params.camera_resolution = sl::RESOLUTION::AUTO;     // Use the camera's native resolution
+  init_params.camera_resolution =
+      sl::RESOLUTION::AUTO;     // Use the camera's native resolution
   init_params.camera_fps = 15;  // Set the camera FPS
   init_params.enable_image_validity_check =
       false;  // Disable image validity check for performance
@@ -188,6 +190,7 @@ int main(int argc, char* argv[]) {
 
   // Configure the Virtual Stereo Camera if '--zedxone' argument is provided
   if (args.is_zed_x_one_virtual_stereo) {
+    is_dual_mono_camera = true;
     int sn_left = args.left_camera_sn;
     int sn_right = args.right_camera_sn;
 
@@ -195,11 +198,10 @@ int main(int argc, char* argv[]) {
       std::cout << "Using serial numbers for left and right cameras: "
                 << sn_left << ", " << sn_right << std::endl;
 
-      int sn_stereo = sl::generateVirtualStereoSerialNumber(
-          sn_left, sn_right);
+      int sn_stereo = sl::generateVirtualStereoSerialNumber(sn_left, sn_right);
       std::cout << "Virtual SN: " << sn_stereo << std::endl;
-      init_params.input.setVirtualStereoFromSerialNumbers(
-          sn_left, sn_right, sn_stereo);
+      init_params.input.setVirtualStereoFromSerialNumbers(sn_left, sn_right,
+                                                          sn_stereo);
     } else {
       if (args.left_camera_id == -1 || args.right_camera_id == -1) {
         std::cerr << "Error: Left and Right camera IDs or Left and Right "
@@ -214,7 +216,7 @@ int main(int argc, char* argv[]) {
                 << args.left_camera_id << ", " << args.right_camera_id
                 << std::endl;
 
-      auto cams = sl::CameraOne::getDeviceList();      
+      auto cams = sl::CameraOne::getDeviceList();
 
       for (auto& cam : cams) {
         if (cam.id == args.left_camera_id) {
@@ -244,25 +246,26 @@ int main(int argc, char* argv[]) {
     int left_model = sn_left / 10000000;
     int right_model = sn_right / 10000000;
 
-    if(left_model != right_model) {
+    if (left_model != right_model) {
       std::cerr << "Error: Left and Right cameras must be of the same model."
                 << std::endl;
       return EXIT_FAILURE;
-    } 
+    }
 
     if (left_model == static_cast<int>(sl::MODEL::ZED_XONE_UHD) &&
         right_model == static_cast<int>(sl::MODEL::ZED_XONE_UHD)) {
       is_4k_camera = true;
       init_params.camera_resolution = sl::RESOLUTION::HD4K;
-      std::cout << " * ZED X One 4K Virtual Stereo Camera detected." << std::endl;
-    }
-    else {
+      std::cout << " * ZED X One 4K Virtual Stereo Camera detected."
+                << std::endl;
+    } else {
       is_4k_camera = false;
       init_params.camera_resolution = sl::RESOLUTION::HD1200;
-      std::cout << " * ZED X One GS Virtual Stereo Camera detected." << std::endl;
+      std::cout << " * ZED X One GS Virtual Stereo Camera detected."
+                << std::endl;
     }
   }
-  
+
   auto status = zed_camera.open(init_params);
 
   // in case of a virtual stereo camera, the calibration file can be not
@@ -460,7 +463,8 @@ int main(int argc, char* argv[]) {
         cv::putText(rendering_image,
                     "Move the target horizontally, vertically, forward "
                     "and backward, and rotate it to improve "
-                    "coverage and variability scores. Framerate can be low if no target is detected.",
+                    "coverage and variability scores. Framerate can be low if "
+                    "no target is detected.",
                     cv::Point(10, display.size[0] + 200),
                     cv::FONT_HERSHEY_SIMPLEX, 0.5, warn_color, 1);
       }
@@ -473,7 +477,8 @@ int main(int argc, char* argv[]) {
       }
 
       if ((key == 's' || key == 'S') || key == ' ') {
-        std::cout << "************************************************" << std::endl;
+        std::cout << "************************************************"
+                  << std::endl;
 
         missing_target_on_last_pics = !found_r || !found_l;
 
@@ -511,7 +516,8 @@ int main(int argc, char* argv[]) {
             float norm_x = checker.getLastDetectedBoardParams().pos.x;
             float norm_y = checker.getLastDetectedBoardParams().pos.y;
             float norm_size = checker.getLastDetectedBoardParams().size;
-            addNewCheckerboardPosition(coverage_indicator, pos_indicator, norm_x, norm_y, norm_size);
+            addNewCheckerboardPosition(coverage_indicator, pos_indicator,
+                                       norm_x, norm_y, norm_size);
           } else {
             std::cout << " ! Sample detected but not valid. Please check the "
                          "checkerboard position and angle."
@@ -525,8 +531,9 @@ int main(int argc, char* argv[]) {
 
   // Start the calibration process
   int err = calibrate(image_count, image_folder, calib, target_w, target_h,
-                      square_size, zed_info.serial_number, is_4k_camera, false,
-                      can_use_calib_prior, max_repr_error, verbose);
+                      square_size, zed_info.serial_number, is_dual_mono_camera,
+                      is_4k_camera, false, can_use_calib_prior, max_repr_error,
+                      verbose);
   if (err == EXIT_SUCCESS)
     std::cout << "CALIBRATION successful" << std::endl;
   else
@@ -542,15 +549,16 @@ static int top_right_count = 0;
 static int bottom_left_count = 0;
 static int bottom_right_count = 0;
 
-void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indicator, 
-                  float norm_x, float norm_y, float norm_size) {
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
+                                cv::Mat& pos_indicator, float norm_x,
+                                float norm_y, float norm_size) {
   int x = static_cast<int>(norm_x * coverage_indicator.cols);
   int y = static_cast<int>(norm_y * coverage_indicator.rows);
   int size = static_cast<int>(norm_size * 20.0f);
   cv::circle(pos_indicator, cv::Point(x, y), size, cv::Scalar(255, 255, 255),
              -1);
 
-  if(norm_x < 0.5f && norm_y < 0.5f) {
+  if (norm_x < 0.5f && norm_y < 0.5f) {
     top_left_count++;
   } else if (norm_x >= 0.5f && norm_y < 0.5f) {
     top_right_count++;
@@ -560,26 +568,31 @@ void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indica
     bottom_right_count++;
   }
 
-  if (top_left_count>=min_samples/4) {
-    cv::rectangle(coverage_indicator, cv::Point(0,0),
-                  cv::Point(coverage_indicator.cols/2, coverage_indicator.rows/2),
-                  cv::Scalar(255), -1);
+  if (top_left_count >= min_samples / 4) {
+    cv::rectangle(
+        coverage_indicator, cv::Point(0, 0),
+        cv::Point(coverage_indicator.cols / 2, coverage_indicator.rows / 2),
+        cv::Scalar(255), -1);
   }
-  if (top_right_count>=min_samples/4) {
-    cv::rectangle(coverage_indicator, cv::Point(coverage_indicator.cols/2,0),
-                  cv::Point(coverage_indicator.cols, coverage_indicator.rows/2),
-                  cv::Scalar(255), -1);
+  if (top_right_count >= min_samples / 4) {
+    cv::rectangle(
+        coverage_indicator, cv::Point(coverage_indicator.cols / 2, 0),
+        cv::Point(coverage_indicator.cols, coverage_indicator.rows / 2),
+        cv::Scalar(255), -1);
   }
-  if (bottom_left_count>=min_samples/4) {
-    cv::rectangle(coverage_indicator, cv::Point(0,coverage_indicator.rows/2),
-                  cv::Point(coverage_indicator.cols/2, coverage_indicator.rows),
-                  cv::Scalar(255), -1);
+  if (bottom_left_count >= min_samples / 4) {
+    cv::rectangle(
+        coverage_indicator, cv::Point(0, coverage_indicator.rows / 2),
+        cv::Point(coverage_indicator.cols / 2, coverage_indicator.rows),
+        cv::Scalar(255), -1);
   }
-  if (bottom_right_count>=min_samples/4) {
-    cv::rectangle(coverage_indicator, cv::Point(coverage_indicator.cols/2,coverage_indicator.rows/2),
-                  cv::Point(coverage_indicator.cols, coverage_indicator.rows),
-                  cv::Scalar(255), -1);
-  } 
+  if (bottom_right_count >= min_samples / 4) {
+    cv::rectangle(
+        coverage_indicator,
+        cv::Point(coverage_indicator.cols / 2, coverage_indicator.rows / 2),
+        cv::Point(coverage_indicator.cols, coverage_indicator.rows),
+        cv::Scalar(255), -1);
+  }
 }
 
 void applyCoverageIndicatorOverlay(cv::Mat& image,
@@ -591,8 +604,7 @@ void applyCoverageIndicatorOverlay(cv::Mat& image,
   cv::merge(channels, image);
 }
 
-void applyPosIndicatorOverlay(cv::Mat& image,
-                                   const cv::Mat& pos_indicator) {
+void applyPosIndicatorOverlay(cv::Mat& image, const cv::Mat& pos_indicator) {
   std::vector<cv::Mat> channels;
   cv::split(image, channels);
   channels[2] = channels[2] - pos_indicator;
