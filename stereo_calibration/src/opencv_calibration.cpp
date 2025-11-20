@@ -253,39 +253,42 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
 
     // Add other parameters for other cameras...
 
+    size_t l_dist_size = left.D.total();
+    size_t r_dist_size = right.D.total();
+
     outfile << "[LEFT_DISTO]\n";
-    outfile << "k1 = " << left.D.at<double>(0) << "\n";
-    outfile << "k2 = " << left.D.at<double>(1) << "\n";
-    outfile << "p1 = " << left.D.at<double>(2) << "\n";
-    outfile << "p2 = " << left.D.at<double>(3) << "\n";
-    outfile << "k3 = " << left.D.at<double>(4) << "\n";
-    outfile << "k4 = " << left.D.at<double>(5) << "\n";
-    outfile << "k5 = " << left.D.at<double>(6) << "\n";
-    outfile << "k6 = " << left.D.at<double>(7) << "\n\n";
+    outfile << "k1 = " << (l_dist_size>0?left.D.at<double>(0):0.0) << "\n";
+    outfile << "k2 = " << (l_dist_size>1?left.D.at<double>(1):0.0) << "\n";
+    outfile << "p1 = " << (l_dist_size>2?left.D.at<double>(2):0.0) << "\n";
+    outfile << "p2 = " << (l_dist_size>3?left.D.at<double>(3):0.0) << "\n";
+    outfile << "k3 = " << (l_dist_size>4?left.D.at<double>(4):0.0) << "\n";
+    outfile << "k4 = " << (l_dist_size>5?left.D.at<double>(5):0.0) << "\n";
+    outfile << "k5 = " << (l_dist_size>6?left.D.at<double>(6):0.0) << "\n";
+    outfile << "k6 = " << (l_dist_size>7?left.D.at<double>(7):0.0) << "\n\n";
 
     outfile << "[RIGHT_DISTO]\n";
-    outfile << "k1 = " << right.D.at<double>(0) << "\n";
-    outfile << "k2 = " << right.D.at<double>(1) << "\n";
-    outfile << "p1 = " << right.D.at<double>(2) << "\n";
-    outfile << "p2 = " << right.D.at<double>(3) << "\n";
-    outfile << "k3 = " << right.D.at<double>(4) << "\n";
-    outfile << "k4 = " << right.D.at<double>(5) << "\n";
-    outfile << "k5 = " << right.D.at<double>(6) << "\n";
-    outfile << "k6 = " << right.D.at<double>(7) << "\n\n";
+    outfile << "k1 = " << (r_dist_size>0?right.D.at<double>(0):0.0) << "\n";
+    outfile << "k2 = " << (r_dist_size>1?right.D.at<double>(1):0.0) << "\n";
+    outfile << "p1 = " << (r_dist_size>2?right.D.at<double>(2):0.0) << "\n";
+    outfile << "p2 = " << (r_dist_size>3?right.D.at<double>(3):0.0) << "\n";
+    outfile << "k3 = " << (r_dist_size>4?right.D.at<double>(4):0.0) << "\n";
+    outfile << "k4 = " << (r_dist_size>5?right.D.at<double>(5):0.0) << "\n";
+    outfile << "k5 = " << (r_dist_size>6?right.D.at<double>(6):0.0) << "\n";
+    outfile << "k6 = " << (r_dist_size>7?right.D.at<double>(7):0.0) << "\n\n";
 
     outfile << "[STEREO]\n";
     outfile << "Baseline = " << -T.at<double>(0) << "\n";
     outfile << "TY = " << T.at<double>(1) << "\n";
     outfile << "TZ = " << T.at<double>(2) << "\n";
-    outfile << "CV_FHD = " << R.at<double>(1) << "\n";
-    outfile << "CV_SVGA = " << R.at<double>(1) << "\n";
-    outfile << "CV_FHD1200 = " << R.at<double>(1) << "\n";
-    outfile << "RX_FHD = " << R.at<double>(0) << "\n";
-    outfile << "RX_SVGA = " << R.at<double>(0) << "\n";
-    outfile << "RX_FHD1200 = " << R.at<double>(0) << "\n";
-    outfile << "RZ_FHD = " << R.at<double>(2) << "\n";
-    outfile << "RZ_SVGA = " << R.at<double>(2) << "\n";
-    outfile << "RZ_FHD1200 = " << R.at<double>(2) << "\n\n";
+    outfile << "CV_FHD = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_SVGA = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_FHD1200 = " << Rv.at<double>(1) << "\n";
+    outfile << "RX_FHD = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_SVGA = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_FHD1200 = " << Rv.at<double>(0) << "\n";
+    outfile << "RZ_FHD = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_SVGA = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_FHD1200 = " << Rv.at<double>(2) << "\n\n";
 
     // Add other parameters for other stereo parameters if needed...
 
@@ -355,25 +358,28 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
 
     // Add other parameters for other cameras...
 
+    size_t l_dist_size = left.D.total();
+    size_t r_dist_size = right.D.total();
+
     outfile << "[LEFT_DISTO]\n";
-    outfile << "k1 = " << left.D.at<double>(0) << "\n";
-    outfile << "k2 = " << left.D.at<double>(1) << "\n";
-    outfile << "p1 = " << left.D.at<double>(2) << "\n";
-    outfile << "p2 = " << left.D.at<double>(3) << "\n";
-    outfile << "k3 = " << left.D.at<double>(4) << "\n";
-    outfile << "k4 = " << left.D.at<double>(5) << "\n";
-    outfile << "k5 = " << left.D.at<double>(6) << "\n";
-    outfile << "k6 = " << left.D.at<double>(7) << "\n\n";
+    outfile << "k1 = " << (l_dist_size>0?left.D.at<double>(0):0.0) << "\n";
+    outfile << "k2 = " << (l_dist_size>1?left.D.at<double>(1):0.0) << "\n";
+    outfile << "p1 = " << (l_dist_size>2?left.D.at<double>(2):0.0) << "\n";
+    outfile << "p2 = " << (l_dist_size>3?left.D.at<double>(3):0.0) << "\n";
+    outfile << "k3 = " << (l_dist_size>4?left.D.at<double>(4):0.0) << "\n";
+    outfile << "k4 = " << (l_dist_size>5?left.D.at<double>(5):0.0) << "\n";
+    outfile << "k5 = " << (l_dist_size>6?left.D.at<double>(6):0.0) << "\n";
+    outfile << "k6 = " << (l_dist_size>7?left.D.at<double>(7):0.0) << "\n\n";
 
     outfile << "[RIGHT_DISTO]\n";
-    outfile << "k1 = " << right.D.at<double>(0) << "\n";
-    outfile << "k2 = " << right.D.at<double>(1) << "\n";
-    outfile << "p1 = " << right.D.at<double>(2) << "\n";
-    outfile << "p2 = " << right.D.at<double>(3) << "\n";
-    outfile << "k3 = " << right.D.at<double>(4) << "\n";
-    outfile << "k4 = " << right.D.at<double>(5) << "\n";
-    outfile << "k5 = " << right.D.at<double>(6) << "\n";
-    outfile << "k6 = " << right.D.at<double>(7) << "\n\n";
+    outfile << "k1 = " << (r_dist_size>0?right.D.at<double>(0):0.0) << "\n";
+    outfile << "k2 = " << (r_dist_size>1?right.D.at<double>(1):0.0) << "\n";
+    outfile << "p1 = " << (r_dist_size>2?right.D.at<double>(2):0.0) << "\n";
+    outfile << "p2 = " << (r_dist_size>3?right.D.at<double>(3):0.0) << "\n";
+    outfile << "k3 = " << (r_dist_size>4?right.D.at<double>(4):0.0) << "\n";
+    outfile << "k4 = " << (r_dist_size>5?right.D.at<double>(5):0.0) << "\n";
+    outfile << "k5 = " << (r_dist_size>6?right.D.at<double>(6):0.0) << "\n";
+    outfile << "k6 = " << (r_dist_size>7?right.D.at<double>(7):0.0) << "\n\n";
 
     outfile << "[STEREO]\n";
     outfile << "Baseline = " << -T.at<double>(0) << "\n";

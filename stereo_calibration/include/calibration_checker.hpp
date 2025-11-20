@@ -65,9 +65,7 @@ class CalibrationChecker {
       const std::vector<cv::Point2f>& corners, cv::Size image_size);
 
   // Check if the detected corners are valid
-  bool isGoodSample(const DetectedBoardParams& params,
-                    const std::vector<cv::Point2f>& corners,
-                    const std::vector<cv::Point2f>& prev_corners);
+  bool isGoodSample(const DetectedBoardParams& params);
 
   // Helper functions
   std::vector<cv::Point2f> get_outside_corners(

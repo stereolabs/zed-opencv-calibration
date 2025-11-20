@@ -16,6 +16,7 @@ CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
   // Calibration parameters
   min_samples_ = min_samples;
   max_samples_ = max_samples;
+  idealParams_ = idealParams;
 
   // Initialize the board parameters
   board_.board_size = board_size;
@@ -40,22 +41,21 @@ bool CalibrationChecker::testSample(const std::vector<cv::Point2f>& corners,
     return false;  // Invalid parameters
   }
 
-  bool is_good = isGoodSample(params, corners,
-                              validCorners_.empty() ? std::vector<cv::Point2f>()
-                                                    : validCorners_.back());
+  std::cout << std::setprecision(3) << " * New Sample: Pos(" << params.pos.x
+            << ", " << params.pos.y << "), Size: " << params.size
+            << ", Skew: " << params.skew << std::endl;
 
-  if (is_good) {
+  if (isGoodSample(params)) {
     // Store the valid parameters and associated corners
     paramDb_.push_back(params);
     validCorners_.push_back(corners);
+    std::cout << "  Sample stored. Total valid samples: "
+              << validCorners_.size() << std::endl;
+    return true;
   }
 
-  std::cout << std::setprecision(3) << "Sample: Pos(" << params.pos.x << ", "
-            << params.pos.y << "), Size: " << params.size
-            << ", Skew: " << params.skew << " => "
-            << (is_good ? "Accepted" : "Rejected") << std::endl;
-
-  return is_good;
+  std::cout << " * Sample rejected." << std::endl;
+  return false;
 }
 
 float CalibrationChecker::compute_skew(
@@ -76,16 +76,32 @@ float CalibrationChecker::compute_skew(
     float dot = ab.x * cb.x + ab.y * cb.y;
     float norm_ab = std::sqrt(ab.x * ab.x + ab.y * ab.y);
     float norm_cb = std::sqrt(cb.x * cb.x + cb.y * cb.y);
-    return std::acos(dot / (norm_ab * norm_cb));
+    float cos_angle = dot / (norm_ab * norm_cb);
+    if (cos_angle < -1.0f)
+      cos_angle = -1.0f;
+    else if (cos_angle > 1.0f)
+      cos_angle = 1.0f;
+    return std::acos(cos_angle);
   };
 
-  // Calculate skew as deviation from 90 degrees
-  float skew = std::min(
-      1.0f, 2.0f * std::abs((PI / 2) - angle(outside_corners[up_left],
-                                           outside_corners[up_right],
-                                           outside_corners[down_right])));
+  // Original code from here:
+  // https://github.com/ros-perception/image_pipeline/blob/rolling/camera_calibration/src/camera_calibration/calibrator.py#L187-L207
+  // float skew = std::min(
+  //     1.0f, 2.0f * std::abs((PI / 2) - angle(outside_corners[up_left],
+  //                                            outside_corners[up_right],
+  //                                            outside_corners[down_right])));
 
-  return skew;
+  float maxDeviation = 0.0f;
+  for (int i = 0; i < 4; i++) {
+    float ang = angle(outside_corners[(i + 3) % 4], outside_corners[i],
+                      outside_corners[(i + 1) % 4]);
+    float deviation = std::abs((PI / 2) - ang);
+    if (deviation > maxDeviation) {
+      maxDeviation = deviation;
+    }
+  }
+
+  return maxDeviation / (PI / 2);
 }
 
 float CalibrationChecker::compute_area(
@@ -176,40 +192,64 @@ DetectedBoardParams CalibrationChecker::getDetectedBoarParams(
   return params;
 }
 
-bool CalibrationChecker::isGoodSample(
-    const DetectedBoardParams& params, const std::vector<cv::Point2f>& corners,
-    const std::vector<cv::Point2f>& prev_corners) {
+bool CalibrationChecker::isGoodSample(const DetectedBoardParams& params) {
   if (paramDb_.empty()) {
     return true;  // First sample is always good
   }
 
+  // Original similarity check from:
+  // https://github.com/ros-perception/image_pipeline/blob/rolling/camera_calibration/src/camera_calibration/calibrator.py#L485-L507
+  // auto param_distance = [](const DetectedBoardParams& p1,
+  //                          const DetectedBoardParams& p2) -> float {
+  //   return std::abs(p1.size - p2.size) + std::abs(p1.skew - p2.skew) +
+  //          std::abs(p1.pos.x - p2.pos.x) + std::abs(p1.pos.y - p2.pos.y);
+  // };
+
+  // for (auto& stored_params : paramDb_) {
+  //   float dist = param_distance(params, stored_params);
+  //   if (dist < 0.2f) {  // TODO tune the threshold
+  //     std::cout << "  Rejected: Too similar to existing samples (dist=" <<
+  //     dist
+  //               << ")" << std::endl;
+  //     return false;
+  //   }
+  // }
+
+  // return true;
+
+  // New similarity check:
   auto is_different = [this](const DetectedBoardParams& p1,
-                           const DetectedBoardParams& p2) -> bool {
-    // Check that at least one parameter differs by at least 10% from all the stored samples
-    float size_diff = std::abs(p1.size - p2.size); // / std::max(p1.size, p2.size);
-    float skew_diff = std::abs(p1.skew - p2.skew); // / std::max(p1.skew, p2.skew);
-    float pos_x_diff = std::abs(p1.pos.x - p2.pos.x); // / std::max(p1.pos.x, p2.pos.x);
-    float pos_y_diff = std::abs(p1.pos.y - p2.pos.y); // / std::max(p1.pos.y, p2.pos.y);
+                             const DetectedBoardParams& p2) -> bool {
+    // Check that at least one parameter differs by at least 10% from all the
+    // stored samples
+    float pos_x_diff =
+        std::abs(p1.pos.x - p2.pos.x) / std::max(p1.pos.x, p2.pos.x);
+    float pos_y_diff =
+        std::abs(p1.pos.y - p2.pos.y) / std::max(p1.pos.y, p2.pos.y);
+    float size_diff = std::abs(p1.size - p2.size) / std::max(p1.size, p2.size);
+    float skew_diff = std::abs(p1.skew - p2.skew) / std::max(p1.skew, p2.skew);
 
-    const float diff_thresh = 0.1f; // 10% difference threshold
+    const float diff_thresh = 0.1f;  // 10% difference threshold
 
-    if(verbose_) {
-      std::cout << std::setprecision(3)
-                << "PosX diff: " << pos_x_diff << ", "
-                << "PosY diff: " << pos_y_diff << ", "
-                << "Size diff: " << size_diff << ", "
-                << "Skew diff: " << skew_diff;
+    if (verbose_) {
+      std::cout << "Comparing to: Pos(" << p2.pos.x << ", " << p2.pos.y
+                << "), Size: " << p2.size << ", Skew: " << p2.skew << std::endl;
+      std::cout << std::setprecision(3) << "PosX diff: " << pos_x_diff * 100.0f
+                << "%, "
+                << "PosY diff: " << pos_y_diff * 100.0f << "%, "
+                << "Size diff: " << size_diff * 100.0f << "%, "
+                << "Skew diff: " << skew_diff * 100.0f << "%";
     }
 
     if (size_diff > diff_thresh || skew_diff > diff_thresh ||
         pos_x_diff > diff_thresh || pos_y_diff > diff_thresh) {
-          if(verbose_) {
-            std::cout << " => Different enough." << std::endl;
-          }
-          return true;  // At least one parameter is sufficiently different
+      if (verbose_) {
+        std::cout << " => Different enough." << std::endl;
+      }
+      return true;  // At least one parameter is sufficiently different
     }
 
-    if(verbose_) {
+    if (verbose_) {
       std::cout << " => Too similar." << std::endl;
     }
 
@@ -217,12 +257,13 @@ bool CalibrationChecker::isGoodSample(
   };
 
   for (auto& stored_params : paramDb_) {
+    // Stop at the first similar sample found
     if (!is_different(params, stored_params)) {
       std::cout << "  Rejected: Too similar to an existing sample" << std::endl;
       return false;
     }
   }
- 
+
   return true;
 }
 
@@ -252,6 +293,10 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
     if (params.skew < min_skew) min_skew = params.skew;
     if (params.skew > max_skew) max_skew = params.skew;
   }
+
+  // Don't reward small size or skew
+  // min_skew = 0.0f;
+  // min_size = 0.0f;
 
   pos_score_x = std::min((max_px - min_px) / idealParams_.pos.x, 1.0f);
   pos_score_y = std::min((max_py - min_py) / idealParams_.pos.y, 1.0f);
