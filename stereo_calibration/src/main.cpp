@@ -322,9 +322,11 @@ int main(int argc, char* argv[]) {
   // Check if the temp image folder exists and clear it
   if (fs::exists(image_folder)) {
     std::uintmax_t n{fs::remove_all(image_folder)};
-    std::cout << " * Removed " << n
-              << " temporary files or directories from previous calibration."
-              << std::endl;
+    if(verbose) {
+      std::cout << " * Removed " << n
+                << " temporary files or directories from previous calibration."
+                << std::endl;
+    }
   }
   // Create the temp image folder
   if (!fs::create_directories(image_folder)) {

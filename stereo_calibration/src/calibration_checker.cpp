@@ -35,7 +35,7 @@ CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
 
 bool CalibrationChecker::testSample(const std::vector<cv::Point2f>& corners,
                                     cv::Size image_size) {
-  DetectedBoardParams params = getDetectedBoarParams(corners, image_size);
+  DetectedBoardParams params = getDetectedBoardParams(corners, image_size);
 
   if (params.size < 0 || params.skew < 0) {
     return false;  // Invalid parameters
@@ -151,7 +151,7 @@ std::vector<cv::Point2f> CalibrationChecker::get_outside_corners(
   return outside_corners;
 }
 
-DetectedBoardParams CalibrationChecker::getDetectedBoarParams(
+DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
     const std::vector<cv::Point2f>& corners, cv::Size image_size) {
   DetectedBoardParams params;
 

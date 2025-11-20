@@ -61,7 +61,7 @@ class CalibrationChecker {
 
  private:
   // Calculate the parameter of a detected checkerboard
-  DetectedBoardParams getDetectedBoarParams(
+  DetectedBoardParams getDetectedBoardParams(
       const std::vector<cv::Point2f>& corners, cv::Size image_size);
 
   // Check if the detected corners are valid
