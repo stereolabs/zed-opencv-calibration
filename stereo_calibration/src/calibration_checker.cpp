@@ -60,6 +60,11 @@ bool CalibrationChecker::testSample(const std::vector<cv::Point2f>& corners,
 
 float CalibrationChecker::compute_skew(
     const std::vector<cv::Point2f>& outside_corners) {
+  /*  Get skew for given checkerboard detection.
+    Scaled to [0,1], which 0 = no skew, 1 = high skew
+    Skew is proportional to the divergence of three outside corners from 90
+    degrees.
+   */
   if (outside_corners.size() != 4) {
     return -1.0f;  // Invalid input
   }
@@ -76,7 +81,7 @@ float CalibrationChecker::compute_skew(
 
   // Calculate skew as deviation from 90 degrees
   float skew = std::min(
-      1.0f, 2.0f * std::abs(PI / 2 - angle(outside_corners[up_left],
+      1.0f, 2.0f * std::abs((PI / 2) - angle(outside_corners[up_left],
                                            outside_corners[up_right],
                                            outside_corners[down_right])));
 
@@ -85,6 +90,12 @@ float CalibrationChecker::compute_skew(
 
 float CalibrationChecker::compute_area(
     const std::vector<cv::Point2f>& outside_corners) {
+  /* Get 2d image area of the detected checkerboard.
+    The projected checkerboard is assumed to be a convex quadrilateral, and the
+    area computed as |p X q|/2; see
+    http://mathworld.wolfram.com/Quadrilateral.html.
+   */
+
   if (outside_corners.size() != 4) {
     return -1.0f;  // Invalid input
   }
@@ -175,25 +186,32 @@ bool CalibrationChecker::isGoodSample(
   auto is_different = [this](const DetectedBoardParams& p1,
                            const DetectedBoardParams& p2) -> bool {
     // Check that at least one parameter differs by at least 10% from all the stored samples
-    float size_diff = std::abs(p1.size - p2.size) / std::max(p1.size, p2.size);
-    float skew_diff = std::abs(p1.skew - p2.skew) / std::max(p1.skew, p2.skew);
-    float pos_x_diff =
-        std::abs(p1.pos.x - p2.pos.x) / std::max(p1.pos.x, p2.pos.x);
-    float pos_y_diff =
-        std::abs(p1.pos.y - p2.pos.y) / std::max(p1.pos.y, p2.pos.y);
-    
+    float size_diff = std::abs(p1.size - p2.size); // / std::max(p1.size, p2.size);
+    float skew_diff = std::abs(p1.skew - p2.skew); // / std::max(p1.skew, p2.skew);
+    float pos_x_diff = std::abs(p1.pos.x - p2.pos.x); // / std::max(p1.pos.x, p2.pos.x);
+    float pos_y_diff = std::abs(p1.pos.y - p2.pos.y); // / std::max(p1.pos.y, p2.pos.y);
+
     const float diff_thresh = 0.1f; // 10% difference threshold
+
+    if(verbose_) {
+      std::cout << std::setprecision(3)
+                << "PosX diff: " << pos_x_diff << ", "
+                << "PosY diff: " << pos_y_diff << ", "
+                << "Size diff: " << size_diff << ", "
+                << "Skew diff: " << skew_diff;
+    }
 
     if (size_diff > diff_thresh || skew_diff > diff_thresh ||
         pos_x_diff > diff_thresh || pos_y_diff > diff_thresh) {
-      return true; // At least one parameter is sufficiently different
+          if(verbose_) {
+            std::cout << " => Different enough." << std::endl;
+          }
+          return true;  // At least one parameter is sufficiently different
     }
 
-    std::cout << std::setprecision(3)
-              << "Size diff: " << size_diff << ", "
-              << "Skew diff: " << skew_diff << ", "
-              << "PosX diff: " << pos_x_diff << ", "
-              << "PosY diff: " << pos_y_diff << "" << std::endl;
+    if(verbose_) {
+      std::cout << " => Too similar." << std::endl;
+    }
 
     return false;  // All parameters are too similar
   };

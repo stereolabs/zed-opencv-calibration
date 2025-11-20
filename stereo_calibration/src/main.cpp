@@ -25,10 +25,12 @@ std::string image_folder = "zed-images/";
 std::map<std::string, std::string> parseArguments(int argc, char* argv[]);
 
 // Coverage indicator fill helpers
-void addNewCheckerboardPosition(cv::Mat& coverage_indicator, float norm_x,
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
+                                cv::Mat& pos_indicator, float norm_x,
                                 float norm_y, float norm_size);
 void applyCoverageIndicatorOverlay(cv::Mat& image,
                                    const cv::Mat& coverage_indicator);
+void applyPosIndicatorOverlay(cv::Mat& image, const cv::Mat& pos_indicator);  
 
 /// Rendering
 constexpr int text_area_height = 210;
@@ -36,29 +38,30 @@ const cv::Size display_size(720, 404);  // Size of the rendered images
 
 /// Calibration condition
 const float max_repr_error = 0.5;  // in pixels
-const int min_samples = 30;
-const int max_samples = 60;
+const int min_samples = 25;
+const int max_samples = 45;
 const float min_x_coverage =
-    0.65f;  // Checkerboard X position should cover 65% of the image width
+    0.7f;  // Checkerboard X position should cover 70% of the image width
 const float min_y_coverage =
-    0.65f;  // Checkerboard Y position should cover 65% of the image height
-const float min_size_variation =
-    0.4f;  // Checkerboard size variation should be at least 40%
-const float min_skew_variation =
-    0.6f;  // Checkerboard skew variation should be at least 70%
+    0.7f;  // Checkerboard Y position should cover 70% of the image height
+const float min_area_range =
+    0.4f;  // Checkerboard area range size should be at least 0.4 [min_area-max_area]
+const float min_skew_range =
+    0.5f;  // Checkerboard skew ange size should be at least 0.5 [min_skew-max_skew]
 
 // Debug
 bool verbose = true;
 int sdk_verbose = 0;
 
-const int MinPts = 10;
-const int MaxPts = 90;
+// Text colors
 const cv::Scalar info_color = cv::Scalar(50, 205, 50);
 const cv::Scalar warn_color = cv::Scalar(0, 128, 255);
 
+// SIDE-by-SIDE or TOP-BOTTOM image stacking for display
 const bool image_stack_horizontal =
     true;  // true for horizontal, false for vertical
 
+// Scale keypoints according to image size change
 void scaleKP(std::vector<cv::Point2f>& pts, cv::Size in, cv::Size out) {
   float rx = out.width / static_cast<float>(in.width);
   float ry = out.height / static_cast<float>(in.height);
@@ -147,8 +150,8 @@ struct Args {
 int main(int argc, char* argv[]) {
   // Setup the calibration checker
   const DetectedBoardParams idealParams = {
-      cv::Point2f(min_x_coverage, min_y_coverage), min_size_variation,
-      min_skew_variation};
+      cv::Point2f(min_x_coverage, min_y_coverage), min_area_range,
+      min_skew_range};
   CalibrationChecker checker(cv::Size(target_w, target_h), square_size,
                              min_samples, max_samples, idealParams, verbose);
   // Coverage scores
@@ -277,6 +280,9 @@ int main(int argc, char* argv[]) {
   cv::Mat coverage_indicator =
       cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
 
+  cv::Mat pos_indicator =
+      cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
+
   cv::Mat rgb_d, rgb2_d, rgb_d_fill, rgb2_d_fill, display, rendering_image;
 
   bool acquisition_completed = false;
@@ -327,6 +333,7 @@ int main(int argc, char* argv[]) {
       cv::resize(rgb_l, rgb_d_fill, display_size);
 
       applyCoverageIndicatorOverlay(rgb_d_fill, coverage_indicator);
+      applyPosIndicatorOverlay(rgb_d_fill, pos_indicator);
 
       std::vector<cv::Point2f> pts_l, pts_r;
       bool found_l = false;
@@ -366,14 +373,14 @@ int main(int argc, char* argv[]) {
         if (missing_target_on_last_pics ||
             low_target_variability_on_last_pics) {
           cv::putText(rendering_image, "Frames not stored for calibration.",
-                      cv::Point(display.size[1] / 2, display.size[0] + 110),
+                      cv::Point(display.size[1] / 2, display.size[0] + 80),
                       cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
         }
 
         if (missing_target_on_last_pics) {
           cv::putText(rendering_image,
                       " * Missing target on one of the cameras.",
-                      cv::Point(display.size[1] / 2, display.size[0] + 140),
+                      cv::Point(display.size[1] / 2, display.size[0] + 110),
                       cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
         }
 
@@ -443,6 +450,8 @@ int main(int argc, char* argv[]) {
       }
 
       if ((key == 's' || key == 'S') || key == ' ') {
+        std::cout << "************************************************" << std::endl;
+
         missing_target_on_last_pics = !found_r || !found_l;
 
         if (found_l && found_r) {
@@ -479,7 +488,7 @@ int main(int argc, char* argv[]) {
             float norm_x = checker.getLastDetectedBoardParams().pos.x;
             float norm_y = checker.getLastDetectedBoardParams().pos.y;
             float norm_size = checker.getLastDetectedBoardParams().size;
-            addNewCheckerboardPosition(coverage_indicator, norm_x, norm_y, norm_size);
+            addNewCheckerboardPosition(coverage_indicator, pos_indicator, norm_x, norm_y, norm_size);
           } else {
             std::cout << " ! Sample detected but not valid. Please check the "
                          "checkerboard position and angle."
@@ -491,12 +500,12 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  // Add "Calibration in progress" message
+  // Start the calibration process
   int err = calibrate(image_count, image_folder, calib, target_w, target_h,
                       square_size, zed_info.serial_number, false,
                       can_use_calib_prior, max_repr_error, true);
   if (err == EXIT_SUCCESS)
-    std::cout << "CALIBRATION success" << std::endl;
+    std::cout << "CALIBRATION successful" << std::endl;
   else
     std::cout << "CALIBRATION failed" << std::endl;
 
@@ -505,20 +514,65 @@ int main(int argc, char* argv[]) {
   return EXIT_SUCCESS;
 }
 
-void addNewCheckerboardPosition(cv::Mat& coverage_indicator, float norm_x,
-                                float norm_y, float norm_size) {
+int top_left_count = 0;
+int top_right_count = 0;
+int bottom_left_count = 0;
+int bottom_right_count = 0;
+
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indicator, 
+                  float norm_x, float norm_y, float norm_size) {
   int x = static_cast<int>(norm_x * coverage_indicator.cols);
   int y = static_cast<int>(norm_y * coverage_indicator.rows);
   int size = static_cast<int>(norm_size * 20.0f);
-  cv::circle(coverage_indicator, cv::Point(x, y), size,
-             cv::Scalar(255, 255, 255), -1);
+  cv::circle(pos_indicator, cv::Point(x, y), size, cv::Scalar(255, 255, 255),
+             -1);
+
+  if(norm_x < 0.5f && norm_y < 0.5f) {
+    top_left_count++;
+  } else if (norm_x >= 0.5f && norm_y < 0.5f) {
+    top_right_count++;
+  } else if (norm_x < 0.5f && norm_y >= 0.5f) {
+    bottom_left_count++;
+  } else {
+    bottom_right_count++;
+  }
+
+  if (top_left_count>=min_samples/4) {
+    cv::rectangle(coverage_indicator, cv::Point(0,0),
+                  cv::Point(coverage_indicator.cols/2, coverage_indicator.rows/2),
+                  cv::Scalar(255), -1);
+  }
+  if (top_right_count>=min_samples/4) {
+    cv::rectangle(coverage_indicator, cv::Point(coverage_indicator.cols/2,0),
+                  cv::Point(coverage_indicator.cols, coverage_indicator.rows/2),
+                  cv::Scalar(255), -1);
+  }
+  if (bottom_left_count>=min_samples/4) {
+    cv::rectangle(coverage_indicator, cv::Point(0,coverage_indicator.rows/2),
+                  cv::Point(coverage_indicator.cols/2, coverage_indicator.rows),
+                  cv::Scalar(255), -1);
+  }
+  if (bottom_right_count>=min_samples/4) {
+    cv::rectangle(coverage_indicator, cv::Point(coverage_indicator.cols/2,coverage_indicator.rows/2),
+                  cv::Point(coverage_indicator.cols, coverage_indicator.rows),
+                  cv::Scalar(255), -1);
+  } 
 }
 
 void applyCoverageIndicatorOverlay(cv::Mat& image,
                                    const cv::Mat& coverage_indicator) {
   std::vector<cv::Mat> channels;
   cv::split(image, channels);
+  channels[0] = channels[0] - coverage_indicator;
   channels[2] = channels[2] - coverage_indicator;
-  channels[1] = channels[1] - coverage_indicator;
+  cv::merge(channels, image);
+}
+
+void applyPosIndicatorOverlay(cv::Mat& image,
+                                   const cv::Mat& pos_indicator) {
+  std::vector<cv::Mat> channels;
+  cv::split(image, channels);
+  channels[2] = channels[2] - pos_indicator;
+  channels[1] = channels[1] - pos_indicator;
   cv::merge(channels, image);
 }
