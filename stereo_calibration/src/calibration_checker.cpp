@@ -222,12 +222,13 @@ bool CalibrationChecker::isGoodSample(const DetectedBoardParams& params) {
                              const DetectedBoardParams& p2) -> bool {
     // Check that at least one parameter differs by at least 10% from all the
     // stored samples
+    constexpr float epsilon = 1e-6f;
     float pos_x_diff =
-        std::abs(p1.pos.x - p2.pos.x) / std::max(p1.pos.x, p2.pos.x);
+        std::abs(p1.pos.x - p2.pos.x) / std::max(std::max(p1.pos.x, p2.pos.x), epsilon);
     float pos_y_diff =
-        std::abs(p1.pos.y - p2.pos.y) / std::max(p1.pos.y, p2.pos.y);
-    float size_diff = std::abs(p1.size - p2.size) / std::max(p1.size, p2.size);
-    float skew_diff = std::abs(p1.skew - p2.skew) / std::max(p1.skew, p2.skew);
+        std::abs(p1.pos.y - p2.pos.y) / std::max(std::max(p1.pos.y, p2.pos.y), epsilon);
+    float size_diff = std::abs(p1.size - p2.size) / std::max(std::max(p1.size, p2.size), epsilon);
+    float skew_diff = std::abs(p1.skew - p2.skew) / std::max(std::max(p1.skew, p2.skew), epsilon);
 
     const float diff_thresh = 0.1f;  // 10% difference threshold
 
