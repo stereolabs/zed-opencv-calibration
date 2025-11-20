@@ -216,28 +216,28 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
 
   if (!is_4k) {  //  AR0234
     outfile << "[LEFT_CAM_FHD1200]\n";
-    outfile << "fx = " << left.K.at<double>(0, 0) << "\n";
-    outfile << "fy = " << left.K.at<double>(1, 1) << "\n";
-    outfile << "cx = " << left.K.at<double>(0, 2) << "\n";
-    outfile << "cy = " << left.K.at<double>(1, 2) << "\n\n";
+    outfile << "fx = " << left.K.at<float>(0, 0) << "\n";
+    outfile << "fy = " << left.K.at<float>(1, 1) << "\n";
+    outfile << "cx = " << left.K.at<float>(0, 2) << "\n";
+    outfile << "cy = " << left.K.at<float>(1, 2) << "\n\n";
 
     outfile << "[RIGHT_CAM_FHD1200]\n";
-    outfile << "fx = " << right.K.at<double>(0, 0) << "\n";
-    outfile << "fy = " << right.K.at<double>(1, 1) << "\n";
-    outfile << "cx = " << right.K.at<double>(0, 2) << "\n";
-    outfile << "cy = " << right.K.at<double>(1, 2) << "\n\n";
+    outfile << "fx = " << right.K.at<float>(0, 0) << "\n";
+    outfile << "fy = " << right.K.at<float>(1, 1) << "\n";
+    outfile << "cx = " << right.K.at<float>(0, 2) << "\n";
+    outfile << "cy = " << right.K.at<float>(1, 2) << "\n\n";
 
     outfile << "[LEFT_CAM_FHD]\n";
-    outfile << "fx = " << left.K.at<double>(0, 0) << "\n";
-    outfile << "fy = " << left.K.at<double>(1, 1) << "\n";
-    outfile << "cx = " << left.K.at<double>(0, 2) << "\n";
-    outfile << "cy = " << left.K.at<double>(1, 2) - 60 << "\n\n";
+    outfile << "fx = " << left.K.at<float>(0, 0) << "\n";
+    outfile << "fy = " << left.K.at<float>(1, 1) << "\n";
+    outfile << "cx = " << left.K.at<float>(0, 2) << "\n";
+    outfile << "cy = " << left.K.at<float>(1, 2) - 60 << "\n\n";
 
     outfile << "[RIGHT_CAM_FHD]\n";
-    outfile << "fx = " << right.K.at<double>(0, 0) << "\n";
-    outfile << "fy = " << right.K.at<double>(1, 1) << "\n";
-    outfile << "cx = " << right.K.at<double>(0, 2) << "\n";
-    outfile << "cy = " << right.K.at<double>(1, 2) - 60 << "\n\n";
+    outfile << "fx = " << right.K.at<float>(0, 0) << "\n";
+    outfile << "fy = " << right.K.at<float>(1, 1) << "\n";
+    outfile << "cx = " << right.K.at<float>(0, 2) << "\n";
+    outfile << "cy = " << right.K.at<float>(1, 2) - 60 << "\n\n";
 
     outfile << "[LEFT_CAM_SVGA]\n";
     outfile << "fx = " << left.K.at<double>(0, 0) / 2 << "\n";
