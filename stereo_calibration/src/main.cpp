@@ -46,7 +46,7 @@ const float min_y_coverage =
     0.7f;  // Checkerboard Y position should cover 70% of the image height
 const float min_area_range = 0.45f;  // Checkerboard area range size should be at
                                     // least 0.4 [min_area-max_area]
-const float min_skew_range = 0.45f;  // Checkerboard skew ange size should be at
+const float min_skew_range = 0.4f;  // Checkerboard skew ange size should be at
                                     // least 0.5 [min_skew-max_skew]
 
 // Debug
