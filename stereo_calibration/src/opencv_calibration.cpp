@@ -379,18 +379,18 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     outfile << "Baseline = " << -T.at<double>(0) << "\n";
     outfile << "TY = " << T.at<double>(1) << "\n";
     outfile << "TZ = " << T.at<double>(2) << "\n";
-    outfile << "CV_FHD = " << R.at<double>(1) << "\n";
-    outfile << "CV_FHD1200 = " << R.at<double>(1) << "\n";
-    outfile << "CV_4k = " << R.at<double>(1) << "\n";
-    outfile << "CV_QHDPLUS = " << R.at<double>(1) << "\n";
-    outfile << "RX_FHD = " << R.at<double>(0) << "\n";
-    outfile << "RX_FHD1200 = " << R.at<double>(0) << "\n";
-    outfile << "RX_4k = " << R.at<double>(0) << "\n";
-    outfile << "RX_QHDPLUS = " << R.at<double>(0) << "\n";
-    outfile << "RZ_FHD = " << R.at<double>(2) << "\n";
-    outfile << "RZ_FHD1200 = " << R.at<double>(2) << "\n";
-    outfile << "RZ_4k = " << R.at<double>(2) << "\n\n";
-    outfile << "RZ_QHDPLUS = " << R.at<double>(2) << "\n\n";
+    outfile << "CV_FHD = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_FHD1200 = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_4k = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_QHDPLUS = " << Rv.at<double>(1) << "\n";
+    outfile << "RX_FHD = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_FHD1200 = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_4k = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_QHDPLUS = " << Rv.at<double>(0) << "\n";
+    outfile << "RZ_FHD = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_FHD1200 = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_4k = " << Rv.at<double>(2) << "\n\n";
+    outfile << "RZ_QHDPLUS = " << Rv.at<double>(2) << "\n\n";
 
     // Add other parameters for other stereo parameters if needed...
 

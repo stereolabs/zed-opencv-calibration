@@ -454,7 +454,7 @@ int main(int argc, char* argv[]) {
                     (skew_score > 1.0f ? info_color : warn_color), 1);
 
         std::stringstream ss_img_count;
-        ss_img_count << " * Sample saved: " << image_count;
+        ss_img_count << " * Sample saved: " << image_count << "[min. " << min_samples << "]";
         cv::putText(rendering_image, ss_img_count.str(),
                     cv::Point(10, display.size[0] + 175),
                     cv::FONT_HERSHEY_SIMPLEX, 0.7,
