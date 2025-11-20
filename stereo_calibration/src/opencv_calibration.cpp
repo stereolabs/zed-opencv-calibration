@@ -2,7 +2,7 @@
 
 int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
               int target_w, int target_h, float square_size, int serial,
-              bool save_calib_mono, bool use_intrinsic_prior,
+              bool is_4k, bool save_calib_mono, bool use_intrinsic_prior,
               float max_repr_error, bool verbose) {
   std::vector<cv::Mat> left_images, right_images;
 
@@ -124,10 +124,10 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     if (rms_l > 0.5f || rms_r > 0.5f || err > 0.5f) {
       std::cout << std::endl
                 << "\t !! Warning !!" << std::endl
-                << " The reprojection error looks too high (>" << max_repr_error
-                << "), check that the lens are clean (sharp images)"
-                   " and that the pattern is printed/mounted on a not flexible "
-                   "and flat surface."
+                << "The max reprojection error looks too high (>" << max_repr_error
+                << "), check that the lenses are clean (sharp images)"
+                   " and that the pattern is printed/mounted on a RIGID "
+                   "and FLAT surface."
                 << std::endl;
 
       return EXIT_FAILURE;
@@ -150,35 +150,54 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     std::cout << "* Rotation:" << std::endl << calib_data.Rv << std::endl;
     std::cout << std::endl;
 
-    std::cout << std::endl << "*** Calibration file ***" << std::endl;
-    std::string calib_filename =
-        "zed_calibration_" + std::to_string(serial) + ".yml";
+    std::cout << std::endl << "*** Save Calibration files ***" << std::endl;
 
-    std::cout << " * Saving calibration file: " << calib_filename << std::endl;
-    std::cout << " * If you want to use this calibration with the ZED SDK, you "
-                 "can load it by using "
-                 "sl::InitParameters::optional_opencv_calibration_file"
-              << std::endl;
-    std::cout << std::endl;
-
-    cv::FileStorage fs(calib_filename, cv::FileStorage::WRITE);
-    if (fs.isOpened()) {
-      fs << "Size" << imageSize;
-      fs << "K_LEFT" << calib_data.left.K << "K_RIGHT" << calib_data.right.K;
-
-      if (calib_data.left.disto_model_RadTan) {
-        fs << "D_LEFT" << calib_data.left.D << "D_RIGHT" << calib_data.right.D;
-      } else {
-        fs << "D_LEFT_FE" << calib_data.left.D << "D_RIGHT_FE"
-           << calib_data.right.D;
-      }
-
-      fs << "R" << calib_data.Rv << "T" << calib_data.T;
-      fs.release();
+    std::string opencv_file = calib_data.saveCalibOpenCV(serial);
+    if (!opencv_file.empty()) {
+      std::cout << " * OpenCV calibration file saved: " << opencv_file << std::endl;
     } else {
-      std::cout << "Error: can not save the extrinsic parameters" << std::endl;
-      return EXIT_FAILURE;
+      std::cout << " !!! Failed to save OpenCV calibration file "
+                << opencv_file << " !!!" << std::endl;
+    }
+
+    std::string zed_file = calib_data.saveCalibZED(serial, is_4k);
+    if (!zed_file.empty()) {
+      std::cout << " * ZED SDK calibration file saved: " << zed_file << std::endl;
+    } else {
+      std::cout << " !!! Failed to save ZED SDK calibration file " << zed_file << " !!!" << std::endl;
     }
   }
+
   return EXIT_SUCCESS;
+}
+
+std::string StereoCalib::saveCalibOpenCV(int serial) {
+  std::string calib_filename =
+      "zed_calibration_" + std::to_string(serial) + ".yml";
+
+  cv::FileStorage fs(calib_filename, cv::FileStorage::WRITE);
+  if (fs.isOpened()) {
+    fs << "Size" << imageSize;
+    fs << "K_LEFT" << left.K << "K_RIGHT" << right.K;
+
+    if (left.disto_model_RadTan) {
+      fs << "D_LEFT" << left.D << "D_RIGHT" << right.D;
+    } else {
+      fs << "D_LEFT_FE" << left.D << "D_RIGHT_FE"
+         << right.D;
+    }
+
+    fs << "R" << Rv << "T" << T;
+    fs.release();
+
+    return calib_filename;
+  }
+
+  return std::string();
+}
+
+std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
+
+
+  return std::string(); 
 }

@@ -158,6 +158,9 @@ int main(int argc, char* argv[]) {
   float size_score = 0.0f, skew_score = 0.0f, pos_score_x = 0.0f,
         pos_score_y = 0.0f;
 
+  // Flags
+  bool is_4k_camera = false;
+
   Args args;
   args.parse(argc, argv);
 
@@ -176,8 +179,7 @@ int main(int argc, char* argv[]) {
   sl::InitParameters init_params;
   init_params.depth_mode =
       sl::DEPTH_MODE::NONE;  // No depth required for calibration
-  init_params.camera_resolution =
-      sl::RESOLUTION::AUTO;     // Use the camera's native resolution
+  init_params.camera_resolution = sl::RESOLUTION::AUTO;     // Use the camera's native resolution
   init_params.camera_fps = 15;  // Set the camera FPS
   init_params.enable_image_validity_check =
       false;  // Disable image validity check for performance
@@ -186,16 +188,18 @@ int main(int argc, char* argv[]) {
 
   // Configure the Virtual Stereo Camera if '--zedxone' argument is provided
   if (args.is_zed_x_one_virtual_stereo) {
-    if (args.left_camera_sn != -1 && args.right_camera_sn != -1) {
+    int sn_left = args.left_camera_sn;
+    int sn_right = args.right_camera_sn;
+
+    if (sn_left != -1 && sn_right != -1) {
       std::cout << "Using serial numbers for left and right cameras: "
-                << args.left_camera_sn << ", " << args.right_camera_sn
-                << std::endl;
+                << sn_left << ", " << sn_right << std::endl;
 
       int sn_stereo = sl::generateVirtualStereoSerialNumber(
-          args.left_camera_sn, args.right_camera_sn);
+          sn_left, sn_right);
       std::cout << "Virtual SN: " << sn_stereo << std::endl;
       init_params.input.setVirtualStereoFromSerialNumbers(
-          args.left_camera_sn, args.right_camera_sn, sn_stereo);
+          sn_left, sn_right, sn_stereo);
     } else {
       if (args.left_camera_id == -1 || args.right_camera_id == -1) {
         std::cerr << "Error: Left and Right camera IDs or Left and Right "
@@ -210,9 +214,7 @@ int main(int argc, char* argv[]) {
                 << args.left_camera_id << ", " << args.right_camera_id
                 << std::endl;
 
-      auto cams = sl::CameraOne::getDeviceList();
-      int sn_left = -1;
-      int sn_right = -1;
+      auto cams = sl::CameraOne::getDeviceList();      
 
       for (auto& cam : cams) {
         if (cam.id == args.left_camera_id) {
@@ -238,8 +240,29 @@ int main(int argc, char* argv[]) {
       init_params.input.setVirtualStereoFromCameraIDs(
           args.left_camera_id, args.right_camera_id, sn_stereo);
     }
-  }
 
+    int left_model = sn_left / 10000000;
+    int right_model = sn_right / 10000000;
+
+    if(left_model != right_model) {
+      std::cerr << "Error: Left and Right cameras must be of the same model."
+                << std::endl;
+      return EXIT_FAILURE;
+    } 
+
+    if (left_model == static_cast<int>(sl::MODEL::ZED_XONE_UHD) &&
+        right_model == static_cast<int>(sl::MODEL::ZED_XONE_UHD)) {
+      is_4k_camera = true;
+      init_params.camera_resolution = sl::RESOLUTION::HD4K;
+      std::cout << " * ZED X One 4K Virtual Stereo Camera detected." << std::endl;
+    }
+    else {
+      is_4k_camera = false;
+      init_params.camera_resolution = sl::RESOLUTION::HD1200;
+      std::cout << " * ZED X One GS Virtual Stereo Camera detected." << std::endl;
+    }
+  }
+  
   auto status = zed_camera.open(init_params);
 
   // in case of a virtual stereo camera, the calibration file can be not
@@ -502,8 +525,8 @@ int main(int argc, char* argv[]) {
 
   // Start the calibration process
   int err = calibrate(image_count, image_folder, calib, target_w, target_h,
-                      square_size, zed_info.serial_number, false,
-                      can_use_calib_prior, max_repr_error, true);
+                      square_size, zed_info.serial_number, is_4k_camera, false,
+                      can_use_calib_prior, max_repr_error, verbose);
   if (err == EXIT_SUCCESS)
     std::cout << "CALIBRATION successful" << std::endl;
   else
@@ -514,10 +537,10 @@ int main(int argc, char* argv[]) {
   return EXIT_SUCCESS;
 }
 
-int top_left_count = 0;
-int top_right_count = 0;
-int bottom_left_count = 0;
-int bottom_right_count = 0;
+static int top_left_count = 0;
+static int top_right_count = 0;
+static int bottom_left_count = 0;
+static int bottom_right_count = 0;
 
 void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indicator, 
                   float norm_x, float norm_y, float norm_size) {

@@ -102,9 +102,12 @@ struct CameraCalib {
 struct StereoCalib {
   CameraCalib left;
   CameraCalib right;
+
   cv::Mat R;   // Rotation matrix between left and right camera
   cv::Mat Rv;  // Rotation vector between left and right camera
   cv::Mat T;   // Translation vector between left and right camera
+  
+  cv::Size imageSize;
 
   void initDefault(bool radtan) {
     left.initDefault(radtan);
@@ -139,8 +142,12 @@ struct StereoCalib {
       const std::vector<std::vector<cv::Point2f>> &image_points_left,
       const std::vector<std::vector<cv::Point2f>> &image_points_right,
       const cv::Size &image_size, int flags, bool verbose) {
+    
+    imageSize = image_size;
+    
     float rms = 0.0;
     cv::Mat E, F;
+    
     if (left.disto_model_RadTan && right.disto_model_RadTan) {
       rms = cv::stereoCalibrate(object_points, image_points_left,
                                 image_points_right, left.K, left.D, right.K,
@@ -163,9 +170,12 @@ struct StereoCalib {
 
     return rms;
   }
+
+  std::string saveCalibOpenCV(int serial);
+  std::string saveCalibZED(int serial, bool is_4k = false);
 };
 
 int calibrate(int img_count, const std::string &folder, StereoCalib &raw_data,
-              int target_w, int target_h, float square_size, int serial,
+              int target_w, int target_h, float square_size, int serial, bool is_4k,
               bool save_calib_mono = false, bool use_intrinsic_prior = false,
               float max_repr_error = 0.5f, bool verbose = false);
