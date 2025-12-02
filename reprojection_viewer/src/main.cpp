@@ -208,7 +208,7 @@ int main(int argc, char **argv) {
     InitParameters init_parameters;
     init_parameters.depth_mode = DEPTH_MODE::NEURAL;
     init_parameters.coordinate_system = COORDINATE_SYSTEM::RIGHT_HANDED_Y_UP; // OpenGL's coordinate system is right_handed
-    init_parameters.sdk_verbose = 1;
+    init_parameters.sdk_verbose = sdk_verbose;
     init_parameters.maximum_working_resolution = sl::Resolution(0, 0);
 
     if (!args.svo_path.empty()) {

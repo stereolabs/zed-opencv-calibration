@@ -9,7 +9,11 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
   /// Read images
   cv::Size imageSize = cv::Size(0, 0);
 
+  std::cout << std::endl
+            << "Loading the stored images from folder: " << folder << std::endl;
+
   for (int i = 0; i < img_count; i++) {
+    std::cout << "." << std::flush;
     cv::Mat grey_l =
         cv::imread(folder + "image_left_" + std::to_string(i) + ".png",
                    cv::IMREAD_GRAYSCALE);
@@ -21,11 +25,13 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
       if (imageSize.width == 0)
         imageSize = grey_l.size();
       else if (imageSize != left_images.back().size()) {
-        std::cout << "Image number " << i
-                  << " does not have the same size as the previous ones"
+        std::cerr << std::endl
+                  << " !!! ERROR !!! " << std::endl
+                  << "Frames number #" << i
+                  << " do not have the same size as the previous ones: "
                   << imageSize << " vs " << left_images.back().size()
                   << std::endl;
-        break;
+        return EXIT_FAILURE;
       }
 
       left_images.push_back(grey_l);
@@ -33,11 +39,8 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     }
   }
 
-  if (verbose) {
-    std::cout << std::endl
-              << "\t" << left_images.size() << " samples collected"
-              << std::endl;
-  }
+  std::cout << std::endl
+            << " * " << left_images.size() << " samples collected" << std::endl;
 
   // Define object points of the target
   std::vector<cv::Point3f> pattern_points;
@@ -53,7 +56,10 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   cv::Size t_size(h_edges, v_edges);
 
+  std::cout << "Detecting the target corners on the images" << std::endl;
+
   for (int i = 0; i < left_images.size(); i++) {
+    std::cout << "." << std::flush;
     std::vector<cv::Point2f> pts_l_, pts_r_;
     bool found_l =
         cv::findChessboardCorners(left_images.at(i), t_size, pts_l_, 3);
@@ -75,12 +81,12 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
       pts_r.push_back(pts_r_);
       object_points.push_back(pattern_points);
     } else {
-      std::cout << "No target detected on image " << i << std::endl;
+      std::cout << std::endl
+                << "- No valid targets detected on frames #" << i << " -" << std::endl;
     }
   }
 
   /// Compute calibration
-  std::cout << std::endl << "*** Calibration Report ***" << std::endl;
 
   if (pts_l.size() < MIN_IMAGE) {
     std::cout << " !!! Not enough images with the target detected !!!"
@@ -88,127 +94,141 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     std::cout << " Please perform a new data acquisition." << std::endl
               << std::endl;
     return EXIT_FAILURE;
+  }
+
+  std::cout << std::endl << " * Valid samples: " << pts_l.size() << "/" << img_count
+            << std::endl;
+
+  auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
+
+  std::cout << "Left camera calibration... " << std::flush;
+
+  auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize, flags,
+                                         verbose);
+  std::cout << "Done." << std::endl;
+
+  std::cout << "Right camera calibration... " << std::flush;
+
+  auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize,
+                                          flags, verbose);
+
+  std::cout << "Done." << std::endl;
+
+  std::cout << "Stereo calibration... " << std::flush;
+
+  auto err = calib_data.calibrate(
+      object_points, pts_l, pts_r, imageSize,
+      cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
+
+  std::cout << "Done." << std::endl;
+
+  std::cout << std::endl << "*** Calibration Report ***" << std::endl;
+
+  std::cout << " * Reprojection errors: " << std::endl;
+  std::cout << "   * Left:\t" << rms_l
+            << (rms_l > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
+  std::cout << "   * Right:\t" << rms_r
+            << (rms_r > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
+  std::cout << "   * Stereo:\t" << err
+            << (err > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
+  if (rms_l > max_repr_error || rms_r > max_repr_error ||
+      err > max_repr_error) {
+    std::cerr << std::endl
+              << "\t!!! ERROR !!!" << std::endl
+              << "The max reprojection error looks too high (>"
+              << max_repr_error
+              << "), check that the lenses are clean (sharp images)"
+                 " and that the pattern is printed/mounted on a RIGID "
+                 "and FLAT surface."
+              << std::endl;
+
+    return EXIT_FAILURE;
+  }
+
+  if (calib_data.left.K.type() == CV_64F) {
+    std::cout << " * Data type: double" << std::endl;
+  } else if (calib_data.left.K.type() == CV_32F) {
+    std::cout << " * Data type: float" << std::endl;
   } else {
-    std::cout << " * Enough valid samples: " << pts_l.size() << std::endl;
-
-    auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
-    if (verbose) {
-      std::cout << "Left camera calibration: " << std::endl;
-    }
-    auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize,
-                                           flags, verbose);
-
-    if (verbose) {
-      std::cout << "Right camera calibration: " << std::endl;
-    }
-    auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize,
-                                            flags, verbose);
-
-    if (verbose) {
-      std::cout << "Stereo calibration: " << std::endl;
-    }
-    auto err = calib_data.calibrate(
-        object_points, pts_l, pts_r, imageSize,
-        cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
-
-    std::cout << " * Reprojection errors: " << std::endl;
-    std::cout << "   * Left " << rms_l
-              << (rms_l > max_repr_error ? " !!! TOO HIGH !!!" : "")
+    std::cerr << " !!! Cannot save the calibration file: 'Invalid data type'"
               << std::endl;
-    std::cout << "   * Right " << rms_r
-              << (rms_r > max_repr_error ? " !!! TOO HIGH !!!" : "")
+    return EXIT_FAILURE;
+  }
+
+  if (calib_data.T.at<double>(0) > 0) {
+    std::cerr << std::endl
+              << "\t !! Warning !!" << std::endl
+              << "The value of the baseline has opposite sign (T_x = "
+              << calib_data.T.at<double>(0) << ")." << std::endl;
+    std::cerr << "Swap left and right cameras and redo the calibration."
               << std::endl;
-    std::cout << "   * Stereo " << err
-              << (err > max_repr_error ? " !!! TOO HIGH !!!" : "") << std::endl;
 
-    if (rms_l > max_repr_error || rms_r > max_repr_error || err > max_repr_error) {
-      std::cerr << std::endl
-                << "\t !! Warning !!" << std::endl
-                << "The max reprojection error looks too high (>"
-                << max_repr_error
-                << "), check that the lenses are clean (sharp images)"
-                   " and that the pattern is printed/mounted on a RIGID "
-                   "and FLAT surface."
-                << std::endl;
+    return EXIT_FAILURE;
+  }
 
-      return EXIT_FAILURE;
-    }
+  if (calib_data.T.at<double>(0) > 0) {
+    std::cerr
+        << std::endl
+        << "\t !! Warning !!" << std::endl
+        << "The value of the baseline has opposite sign than expected(T_x = "
+        << calib_data.T.at<double>(0) << ")." << std::endl;
+    std::cerr << "Swap left and right cameras and redo the calibration."
+              << std::endl;
 
-    if(calib_data.T.at<float>(0) > 0) {
-      std::cerr << std::endl
-                << "\t !! Warning !!" << std::endl
-                << "The value of the baseline has opposite sign (T_x = "
-                << calib_data.T.at<float>(0) << ")." << std::endl;
-      std::cerr << "Swap left and right cameras and redo the calibration."
-                << std::endl;
+    return EXIT_FAILURE;
+  }
 
-      return EXIT_FAILURE;
-    }
+  constexpr float MIN_BASELINE = 30.0f;  // Minimum possible baseline in mm
 
-    if (calib_data.T.at<float>(0) > 0) {
-      std::cerr << std::endl
-                << "\t !! Warning !!" << std::endl
-                << "The value of the baseline has opposite sign than expected(T_x = "
-                << calib_data.T.at<float>(0) << ")." << std::endl;
-      std::cerr << "Swap left and right cameras and redo the calibration."
-                << std::endl;
+  if (fabs(calib_data.T.at<double>(0)) < MIN_BASELINE) {
+    std::cerr << std::endl
+              << "\t !! Warning !!" << std::endl
+              << "The value of the baseline is too small (T_x = "
+              << calib_data.T.at<double>(0) << ")." << std::endl;
+    std::cerr << "Please redo the calibration to obtain a value that is "
+                 "phisically coherent (at least "
+              << MIN_BASELINE << " mm)." << std::endl;
 
-      return EXIT_FAILURE;
-    }
+    return EXIT_FAILURE;
+  }
 
-    constexpr float MIN_BASELINE = 30.0f; // Minimum possible baseline in mm
+  std::cout << std::endl;
 
-    if (fabs(calib_data.T.at<float>(0)) < MIN_BASELINE ) { 
-      std::cerr
-          << std::endl
-          << "\t !! Warning !!" << std::endl
-          << "The value of the baseline is too small (T_x = "
-          << calib_data.T.at<float>(0) << ")." << std::endl;
-      std::cerr << "Please redo the calibration to obtain a value that is phisically coherent (at least "
-                << MIN_BASELINE << " mm)."
-                << std::endl;
+  std::cout << "** Camera parameters **" << std::endl;
+  std::cout << "* Intrinsic mat left:" << std::endl
+            << calib_data.left.K << std::endl;
+  std::cout << "* Distortion mat left:" << std::endl
+            << calib_data.left.D << std::endl;
+  std::cout << "* Intrinsic mat right:" << std::endl
+            << calib_data.right.K << std::endl;
+  std::cout << "* Distortion mat right:" << std::endl
+            << calib_data.right.D << std::endl;
+  std::cout << std::endl;
+  std::cout << "** Extrinsic parameters **" << std::endl;
+  std::cout << "* Translation:" << std::endl << calib_data.T << std::endl;
+  std::cout << "* Rotation:" << std::endl << calib_data.Rv << std::endl;
+  std::cout << std::endl;
 
-      return EXIT_FAILURE;
-    }
+  std::cout << std::endl << "*** Save Calibration files ***" << std::endl;
 
-    std::cout << std::endl;
+  std::string opencv_file = calib_data.saveCalibOpenCV(serial);
+  if (!opencv_file.empty()) {
+    std::cout << " * OpenCV calibration file saved: " << opencv_file
+              << std::endl;
+  } else {
+    std::cout << " !!! Failed to save OpenCV calibration file " << opencv_file
+              << " !!!" << std::endl;
+  }
 
-    std::cout << "** Camera parameters **" << std::endl;
-    std::cout << "* Intrinsic mat left:" << std::endl
-              << calib_data.left.K << std::endl;
-    std::cout << "* Distortion mat left:" << std::endl
-              << calib_data.left.D << std::endl;
-    std::cout << "* Intrinsic mat right:" << std::endl
-              << calib_data.right.K << std::endl;
-    std::cout << "* Distortion mat right:" << std::endl
-              << calib_data.right.D << std::endl;
-    std::cout << std::endl;
-    std::cout << "** Extrinsic parameters **" << std::endl;
-    std::cout << "* Translation:" << std::endl << calib_data.T << std::endl;
-    std::cout << "* Rotation:" << std::endl << calib_data.Rv << std::endl;
-    std::cout << std::endl;
-
-    std::cout << std::endl << "*** Save Calibration files ***" << std::endl;
-
-    std::string opencv_file = calib_data.saveCalibOpenCV(serial);
-    if (!opencv_file.empty()) {
-      std::cout << " * OpenCV calibration file saved: " << opencv_file
+  // SDK format is only supported for dual-mono setups
+  if (is_dual_mono) {
+    std::string zed_file = calib_data.saveCalibZED(serial, is_4k);
+    if (!zed_file.empty()) {
+      std::cout << " * ZED SDK calibration file saved: " << zed_file
                 << std::endl;
     } else {
-      std::cout << " !!! Failed to save OpenCV calibration file " << opencv_file
+      std::cout << " !!! Failed to save ZED SDK calibration file " << zed_file
                 << " !!!" << std::endl;
-    }
-
-    // SDK format is only supported for dual-mono setups
-    if (is_dual_mono) {
-      std::string zed_file = calib_data.saveCalibZED(serial, is_4k);
-      if (!zed_file.empty()) {
-        std::cout << " * ZED SDK calibration file saved: " << zed_file
-                  << std::endl;
-      } else {
-        std::cout << " !!! Failed to save ZED SDK calibration file " << zed_file
-                  << " !!!" << std::endl;
-      }
     }
   }
 
@@ -239,24 +259,24 @@ std::string StereoCalib::saveCalibOpenCV(int serial) {
   return std::string();
 }
 
-void printDisto(const CameraCalib& calib, std::ofstream &outfile) {
-  if(calib.disto_model_RadTan) {
+void printDisto(const CameraCalib& calib, std::ofstream& outfile) {
+  if (calib.disto_model_RadTan) {
     size_t dist_size = calib.D.total();
-    outfile << "k1 = " << calib.D.at<float>(0) << "\n";
-    outfile << "k2 = " << calib.D.at<float>(1) << "\n";
-    outfile << "p1 = " << calib.D.at<float>(2) << "\n";
-    outfile << "p2 = " << calib.D.at<float>(3) << "\n";
-    outfile << "k3 = " << calib.D.at<float>(4) << "\n";
-    outfile << "k4 = " << (dist_size > 5 ? calib.D.at<float>(5) : 0.0) << "\n";
-    outfile << "k5 = " << (dist_size > 6 ? calib.D.at<float>(6) : 0.0) << "\n";
-    outfile << "k6 = " << (dist_size > 7 ? calib.D.at<float>(7) : 0.0) << "\n";
-  }else{
-    outfile << "k1 = " << calib.D.at<float>(0) << "\n";
-    outfile << "k2 = " << calib.D.at<float>(1) << "\n";
-    outfile << "k3 = " << calib.D.at<float>(2) << "\n";
-    outfile << "k4 = " << calib.D.at<float>(3) << "\n";
+    outfile << "k1 = " << calib.D.at<double>(0) << "\n";
+    outfile << "k2 = " << calib.D.at<double>(1) << "\n";
+    outfile << "p1 = " << calib.D.at<double>(2) << "\n";
+    outfile << "p2 = " << calib.D.at<double>(3) << "\n";
+    outfile << "k3 = " << calib.D.at<double>(4) << "\n";
+    outfile << "k4 = " << (dist_size > 5 ? calib.D.at<double>(5) : 0.0) << "\n";
+    outfile << "k5 = " << (dist_size > 6 ? calib.D.at<double>(6) : 0.0) << "\n";
+    outfile << "k6 = " << (dist_size > 7 ? calib.D.at<double>(7) : 0.0) << "\n";
+  } else {
+    outfile << "k1 = " << calib.D.at<double>(0) << "\n";
+    outfile << "k2 = " << calib.D.at<double>(1) << "\n";
+    outfile << "k3 = " << calib.D.at<double>(2) << "\n";
+    outfile << "k4 = " << calib.D.at<double>(3) << "\n";
   }
-  outfile<<"\n";
+  outfile << "\n";
 }
 
 std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
@@ -321,10 +341,10 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     outfile << "cy = " << left.K.at<double>(1, 2) / 2 << "\n\n";
 
     outfile << "[RIGHT_CAM_SVGA]\n";
-    outfile << "fx = " << right.K.at<float>(0, 0) / 2 << "\n";
-    outfile << "fy = " << right.K.at<float>(1, 1) / 2 << "\n";
-    outfile << "cx = " << right.K.at<float>(0, 2) / 2 << "\n";
-    outfile << "cy = " << right.K.at<float>(1, 2) / 2 << "\n\n";
+    outfile << "fx = " << right.K.at<double>(0, 0) / 2 << "\n";
+    outfile << "fy = " << right.K.at<double>(1, 1) / 2 << "\n";
+    outfile << "cx = " << right.K.at<double>(0, 2) / 2 << "\n";
+    outfile << "cy = " << right.K.at<double>(1, 2) / 2 << "\n\n";
 
     outfile << "[LEFT_DISTO]\n";
     printDisto(left, outfile);
@@ -333,18 +353,18 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     printDisto(right, outfile);
 
     outfile << "[STEREO]\n";
-    outfile << "Baseline = " << -T.at<float>(0) << "\n";
-    outfile << "TY = " << T.at<float>(1) << "\n";
-    outfile << "TZ = " << T.at<float>(2) << "\n";
-    outfile << "CV_FHD = " << Rv.at<float>(1) << "\n";
-    outfile << "CV_SVGA = " << Rv.at<float>(1) << "\n";
-    outfile << "CV_FHD1200 = " << Rv.at<float>(1) << "\n";
-    outfile << "RX_FHD = " << Rv.at<float>(0) << "\n";
-    outfile << "RX_SVGA = " << Rv.at<float>(0) << "\n";
-    outfile << "RX_FHD1200 = " << Rv.at<float>(0) << "\n";
-    outfile << "RZ_FHD = " << Rv.at<float>(2) << "\n";
-    outfile << "RZ_SVGA = " << Rv.at<float>(2) << "\n";
-    outfile << "RZ_FHD1200 = " << Rv.at<float>(2) << "\n\n";
+    outfile << "Baseline = " << -T.at<double>(0) << "\n";
+    outfile << "TY = " << T.at<double>(1) << "\n";
+    outfile << "TZ = " << T.at<double>(2) << "\n";
+    outfile << "CV_FHD = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_SVGA = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_FHD1200 = " << Rv.at<double>(1) << "\n";
+    outfile << "RX_FHD = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_SVGA = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_FHD1200 = " << Rv.at<double>(0) << "\n";
+    outfile << "RZ_FHD = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_SVGA = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_FHD1200 = " << Rv.at<double>(2) << "\n\n";
 
     outfile.close();
     std::cout << " * Parameter file written successfully: '" << calib_filename
@@ -416,21 +436,21 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     printDisto(right, outfile);
 
     outfile << "[STEREO]\n";
-    outfile << "Baseline = " << -T.at<float>(0) << "\n";
-    outfile << "TY = " << T.at<float>(1) << "\n";
-    outfile << "TZ = " << T.at<float>(2) << "\n";
-    outfile << "CV_FHD = " << Rv.at<float>(1) << "\n";
-    outfile << "CV_FHD1200 = " << Rv.at<float>(1) << "\n";
-    outfile << "CV_4k = " << Rv.at<float>(1) << "\n";
-    outfile << "CV_QHDPLUS = " << Rv.at<float>(1) << "\n";
-    outfile << "RX_FHD = " << Rv.at<float>(0) << "\n";
-    outfile << "RX_FHD1200 = " << Rv.at<float>(0) << "\n";
-    outfile << "RX_4k = " << Rv.at<float>(0) << "\n";
-    outfile << "RX_QHDPLUS = " << Rv.at<float>(0) << "\n";
-    outfile << "RZ_FHD = " << Rv.at<float>(2) << "\n";
-    outfile << "RZ_FHD1200 = " << Rv.at<float>(2) << "\n";
-    outfile << "RZ_4k = " << Rv.at<float>(2) << "\n\n";
-    outfile << "RZ_QHDPLUS = " << Rv.at<float>(2) << "\n\n";
+    outfile << "Baseline = " << -T.at<double>(0) << "\n";
+    outfile << "TY = " << T.at<double>(1) << "\n";
+    outfile << "TZ = " << T.at<double>(2) << "\n";
+    outfile << "CV_FHD = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_FHD1200 = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_4k = " << Rv.at<double>(1) << "\n";
+    outfile << "CV_QHDPLUS = " << Rv.at<double>(1) << "\n";
+    outfile << "RX_FHD = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_FHD1200 = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_4k = " << Rv.at<double>(0) << "\n";
+    outfile << "RX_QHDPLUS = " << Rv.at<double>(0) << "\n";
+    outfile << "RZ_FHD = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_FHD1200 = " << Rv.at<double>(2) << "\n";
+    outfile << "RZ_4k = " << Rv.at<double>(2) << "\n\n";
+    outfile << "RZ_QHDPLUS = " << Rv.at<double>(2) << "\n\n";
 
     outfile.close();
     std::cout << " * Parameter file written successfully: '" << calib_filename

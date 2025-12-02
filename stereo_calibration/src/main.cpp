@@ -39,15 +39,13 @@ const cv::Size display_size(720, 404);  // Size of the rendered images
 /// Calibration condition
 const float max_repr_error = 0.5;  // in pixels
 const int min_samples = 25;
-const int max_samples = 45;
+const int max_samples = 40;
 const float min_x_coverage =
-    0.7f;  // Checkerboard X position should cover 70% of the image width
+    0.7f;  // Checkerboard X position covering percentage of the image width
 const float min_y_coverage =
-    0.7f;  // Checkerboard Y position should cover 70% of the image height
-const float min_area_range = 0.45f;  // Checkerboard area range size should be
-                                     // at least 0.4 [min_area-max_area]
-const float min_skew_range = 0.4f;  // Checkerboard skew ange size should be at
-                                    // least 0.5 [min_skew-max_skew]
+    0.7f;  // Checkerboard Y position covering percentage of the image height
+const float min_area_range = 0.45f;  // Checkerboard area range size [min_area-max_area]
+const float min_skew_range = 0.375f; // Checkerboard skew ange size [min_skew-max_skew]
 
 // Debug
 bool verbose = false;
@@ -199,7 +197,7 @@ int main(int argc, char* argv[]) {
   std::cout << " * Expected checkerboard features:" << std::endl;
   std::cout << "   - Inner horizontal edges:\t" << h_edges << std::endl;
   std::cout << "   - Inner vertical edges:\t" << v_edges << std::endl;
-  std::cout << "   - Square size:\t\t" << square_size << "mm" << std::endl;
+  std::cout << "   - Square size:\t\t" << square_size << " mm" << std::endl;
   std::cout << "Change these parameters using the command line options if "
                "needed. Use the '-h' option for help." << std::endl;
   std::cout << std::endl;
@@ -236,7 +234,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: Left and Right camera IDs or Left and Right "
                      "camera Serial Numbers must be both provided."
                   << std::endl;
-        std::cerr << " * use the command " << args.app_name
+        std::cerr << " * use the command '" << args.app_name
                   << " -h' for details." << std::endl;
         return EXIT_FAILURE;
       }
@@ -508,8 +506,7 @@ int main(int argc, char* argv[]) {
       key = cv::waitKey(10);
 
       if (acquisition_completed) {
-        std::cout << "Starting calibration process..." << std::endl
-                  << std::endl;
+        std::cout << " *** Starting the calibration process ***" << std::endl;
         break;
       }
 
@@ -573,9 +570,9 @@ int main(int argc, char* argv[]) {
                 zed_info.serial_number, is_dual_mono_camera, is_4k_camera,
                 false, can_use_calib_prior, max_repr_error, verbose);
   if (err == EXIT_SUCCESS)
-    std::cout << "CALIBRATION successful" << std::endl;
+    std::cout << std::endl << " +++++ Calibration successful +++++" << std::endl;
   else
-    std::cout << "CALIBRATION failed" << std::endl;
+    std::cout << std::endl << " ----- Calibration failed -----" << std::endl;
 
   zed_camera.close();
 
