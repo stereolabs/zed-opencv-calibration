@@ -132,9 +132,6 @@ struct StereoCalib {
     Rv.at<float>(1) = rot.y;
     Rv.at<float>(2) = rot.z;
     cv::Rodrigues(Rv, R);
-    std::cout << " Lens disto model "
-              << (left.disto_model_RadTan && right.disto_model_RadTan)
-              << std::endl;
   }
 
   float calibrate(
