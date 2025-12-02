@@ -1,7 +1,7 @@
 #include "opencv_calibration.hpp"
 
 int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
-              int target_w, int target_h, float square_size, int serial,
+              int h_edges, int v_edges, float square_size, int serial,
               bool is_dual_mono, bool is_4k, bool save_calib_mono,
               bool use_intrinsic_prior, float max_repr_error, bool verbose) {
   std::vector<cv::Mat> left_images, right_images;
@@ -41,8 +41,8 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   // Define object points of the target
   std::vector<cv::Point3f> pattern_points;
-  for (int i = 0; i < target_h; i++) {
-    for (int j = 0; j < target_w; j++) {
+  for (int i = 0; i < v_edges; i++) {
+    for (int j = 0; j < h_edges; j++) {
       pattern_points.push_back(
           cv::Point3f(square_size * j, square_size * i, 0));
     }
@@ -51,7 +51,7 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
   std::vector<std::vector<cv::Point3f>> object_points;
   std::vector<std::vector<cv::Point2f>> pts_l, pts_r;
 
-  cv::Size t_size(target_w, target_h);
+  cv::Size t_size(h_edges, v_edges);
 
   for (int i = 0; i < left_images.size(); i++) {
     std::vector<cv::Point2f> pts_l_, pts_r_;

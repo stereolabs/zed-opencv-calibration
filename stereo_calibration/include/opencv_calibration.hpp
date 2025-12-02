@@ -176,7 +176,7 @@ struct StereoCalib {
 };
 
 int calibrate(int img_count, const std::string &folder, StereoCalib &raw_data,
-              int target_w, int target_h, float square_size, int serial,
+              int h_edges, int v_edges, float square_size, int serial,
               bool is_dual_mono, bool is_4k, bool save_calib_mono = false,
               bool use_intrinsic_prior = false, float max_repr_error = 0.5f,
               bool verbose = false);

@@ -7,13 +7,13 @@
 namespace fs = std::filesystem;
 
 // *********************************************************************************
-// CHANGE THIS PARAM BASED ON THE CHECKERBOARD USED
+// CHANGE THIS PARAMS USING THE COMMAND LINE OPTIONS
 // Learn more:
 // * https://docs.opencv.org/4.x/da/d0d/tutorial_camera_calibration_pattern.html
 
-constexpr int target_w = 9;          // number of horizontal inner edges
-constexpr int target_h = 6;          // number of vertical inner edges
-constexpr float square_size = 25.4;  // mm
+int h_edges = 9;           // number of horizontal inner edges
+int v_edges = 6;           // number of vertical inner edges
+float square_size = 25.4;  // mm
 
 // Default parameters are good for this checkerboard:
 // https://github.com/opencv/opencv/blob/4.x/doc/pattern.png/
@@ -44,8 +44,8 @@ const float min_x_coverage =
     0.7f;  // Checkerboard X position should cover 70% of the image width
 const float min_y_coverage =
     0.7f;  // Checkerboard Y position should cover 70% of the image height
-const float min_area_range = 0.45f;  // Checkerboard area range size should be at
-                                    // least 0.4 [min_area-max_area]
+const float min_area_range = 0.45f;  // Checkerboard area range size should be
+                                     // at least 0.4 [min_area-max_area]
 const float min_skew_range = 0.4f;  // Checkerboard skew ange size should be at
                                     // least 0.5 [min_skew-max_skew]
 
@@ -103,8 +103,23 @@ struct Args {
         left_camera_sn = std::stoi(argv[++i]);
       } else if (arg == "--right_sn" && i + 1 < argc) {
         right_camera_sn = std::stoi(argv[++i]);
+      } else if (arg == "--h_edges" && i + 1 < argc) {
+        h_edges = std::stoi(argv[++i]);
+      } else if (arg == "--v_edges" && i + 1 < argc) {
+        v_edges = std::stoi(argv[++i]);
+      } else if (arg == "--square_size" && i + 1 < argc) {
+        square_size = std::stof(argv[++i]);
       } else if (arg == "--help" || arg == "-h") {
         std::cout << "Usage: " << argv[0] << " [options]" << std::endl;
+        std::cout << "  --h_edges <value>      Number of horizontal inner "
+                     "edges of the checkerboard"
+                  << std::endl;
+        std::cout << "  --v_edges <value>      Number of vertical inner edges "
+                     "of the checkerboard"
+                  << std::endl;
+        std::cout << "  --square_size <value>  Size of a square in the "
+                     "checkerboard (in mm)"
+                  << std::endl;
         std::cout << "  --svo <file>      Path to the SVO file" << std::endl;
         std::cout << "  --fisheye         Use fisheye lens model" << std::endl;
         std::cout << "  --zedxone         Use ZED X One cameras as a virtual "
@@ -128,12 +143,23 @@ struct Args {
         std::cout << "  --help, -h        Show this help message" << std::endl
                   << std::endl;
         std::cout << "Examples:" << std::endl;
-        std::cout << "* ZED Stereo Camera using an SVO file:" << std::endl;
+        std::cout << std::endl
+                  << "* ZED Stereo Camera using an SVO file:" << std::endl;
         std::cout << "  " << argv[0] << " --svo camera.svo" << std::endl;
-        std::cout << "* Virtual Stereo Camera using camera IDs:" << std::endl;
+        std::cout << std::endl
+                  << "* Virtual Stereo Camera using camera IDs:" << std::endl;
         std::cout << "  " << argv[0] << " --zedxone --left_id 0 --right_id 1"
                   << std::endl;
-        std::cout << "* Virtual Stereo Camera with fisheye lenses using camera "
+        std::cout << std::endl
+                  << "* Virtual Stereo Camera using camera serial numbers and "
+                     "a custom checkerboard:"
+                  << std::endl;
+        std::cout << "  " << argv[0]
+                  << " --zedxone --left_sn 301528071 --right_sn 300473441 "
+                     "--h_edges 12 --v_edges 9 --square_size 30.0"
+                  << std::endl;
+        std::cout << std::endl
+                  << "* Virtual Stereo Camera with fisheye lenses using camera "
                      "serial numbers:"
                   << std::endl;
         std::cout
@@ -152,7 +178,7 @@ int main(int argc, char* argv[]) {
   const DetectedBoardParams idealParams = {
       cv::Point2f(min_x_coverage, min_y_coverage), min_area_range,
       min_skew_range};
-  CalibrationChecker checker(cv::Size(target_w, target_h), square_size,
+  CalibrationChecker checker(cv::Size(h_edges, v_edges), square_size,
                              min_samples, max_samples, idealParams, verbose);
   // Coverage scores
   float size_score = 0.0f, skew_score = 0.0f, pos_score_x = 0.0f,
@@ -169,7 +195,7 @@ int main(int argc, char* argv[]) {
   std::cout << "The calibration process requires a checkerboard of known "
                "characteristics."
             << std::endl;
-  std::cout << "Expected checkerboard size: " << target_w << "x" << target_h
+  std::cout << "Expected checkerboard size: " << h_edges << "x" << v_edges
             << " - " << square_size << "mm" << std::endl;
   std::cout << "Change those values in the code depending on the checkerboard "
                "you are using!"
@@ -313,8 +339,8 @@ int main(int argc, char* argv[]) {
 
   bool acquisition_completed = false;
   std::vector<cv::Point3f> pts_obj_;
-  for (int i = 0; i < target_h; i++) {
-    for (int j = 0; j < target_w; j++) {
+  for (int i = 0; i < v_edges; i++) {
+    for (int j = 0; j < h_edges; j++) {
       pts_obj_.push_back(cv::Point3f(square_size * j, square_size * i, 0.0));
     }
   }
@@ -322,7 +348,7 @@ int main(int argc, char* argv[]) {
   // Check if the temp image folder exists and clear it
   if (fs::exists(image_folder)) {
     std::uintmax_t n{fs::remove_all(image_folder)};
-    if(verbose) {
+    if (verbose) {
       std::cout << " * Removed " << n
                 << " temporary files or directories from previous calibration."
                 << std::endl;
@@ -367,13 +393,13 @@ int main(int argc, char* argv[]) {
       bool found_l = false;
       bool found_r = false;
       found_l =
-          cv::findChessboardCorners(rgb_d, cv::Size(target_w, target_h), pts_l);
-      drawChessboardCorners(rgb_d_fill, cv::Size(target_w, target_h),
+          cv::findChessboardCorners(rgb_d, cv::Size(h_edges, v_edges), pts_l);
+      drawChessboardCorners(rgb_d_fill, cv::Size(h_edges, v_edges),
                             cv::Mat(pts_l), found_l);
       if (found_l) {
-        found_r = cv::findChessboardCorners(
-            rgb2_d, cv::Size(target_w, target_h), pts_r);
-        drawChessboardCorners(rgb2_d, cv::Size(target_w, target_h),
+        found_r = cv::findChessboardCorners(rgb2_d, cv::Size(h_edges, v_edges),
+                                            pts_r);
+        drawChessboardCorners(rgb2_d, cv::Size(h_edges, v_edges),
                               cv::Mat(pts_r), found_r);
       }
 
@@ -456,7 +482,8 @@ int main(int argc, char* argv[]) {
                     (skew_score > 1.0f ? info_color : warn_color), 1);
 
         std::stringstream ss_img_count;
-        ss_img_count << " * Sample saved: " << image_count << " [min. " << min_samples << "]";
+        ss_img_count << " * Sample saved: " << image_count << " [min. "
+                     << min_samples << "]";
         cv::putText(rendering_image, ss_img_count.str(),
                     cv::Point(10, display.size[0] + 175),
                     cv::FONT_HERSHEY_SIMPLEX, 0.7,
@@ -512,7 +539,8 @@ int main(int argc, char* argv[]) {
             if (checker.evaluateSampleCollectionStatus(
                     size_score, skew_score, pos_score_x, pos_score_y)) {
               std::cout << ">>> Sample collection status: COMPLETE <<<"
-                        << std::endl << std::endl;
+                        << std::endl
+                        << std::endl;
               acquisition_completed = true;
             }
 
@@ -534,10 +562,10 @@ int main(int argc, char* argv[]) {
   }
 
   // Start the calibration process
-  int err = calibrate(image_count, image_folder, calib, target_w, target_h,
-                      square_size, zed_info.serial_number, is_dual_mono_camera,
-                      is_4k_camera, false, can_use_calib_prior, max_repr_error,
-                      verbose);
+  int err =
+      calibrate(image_count, image_folder, calib, h_edges, v_edges, square_size,
+                zed_info.serial_number, is_dual_mono_camera, is_4k_camera,
+                false, can_use_calib_prior, max_repr_error, verbose);
   if (err == EXIT_SUCCESS)
     std::cout << "CALIBRATION successful" << std::endl;
   else
