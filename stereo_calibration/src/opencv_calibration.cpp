@@ -121,14 +121,51 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     std::cout << "   * Stereo " << err
               << (err > max_repr_error ? " !!! TOO HIGH !!!" : "") << std::endl;
 
-    if (rms_l > 0.5f || rms_r > 0.5f || err > 0.5f) {
-      std::cout << std::endl
+    if (rms_l > max_repr_error || rms_r > max_repr_error || err > max_repr_error) {
+      std::cerr << std::endl
                 << "\t !! Warning !!" << std::endl
                 << "The max reprojection error looks too high (>"
                 << max_repr_error
                 << "), check that the lenses are clean (sharp images)"
                    " and that the pattern is printed/mounted on a RIGID "
                    "and FLAT surface."
+                << std::endl;
+
+      return EXIT_FAILURE;
+    }
+
+    if(calib_data.T.at<float>(0) > 0) {
+      std::cerr << std::endl
+                << "\t !! Warning !!" << std::endl
+                << "The value of the baseline has opposite sign (T_x = "
+                << calib_data.T.at<float>(0) << ")." << std::endl;
+      std::cerr << "Swap left and right cameras and redo the calibration."
+                << std::endl;
+
+      return EXIT_FAILURE;
+    }
+
+    if (calib_data.T.at<float>(0) > 0) {
+      std::cerr << std::endl
+                << "\t !! Warning !!" << std::endl
+                << "The value of the baseline has opposite sign than expected(T_x = "
+                << calib_data.T.at<float>(0) << ")." << std::endl;
+      std::cerr << "Swap left and right cameras and redo the calibration."
+                << std::endl;
+
+      return EXIT_FAILURE;
+    }
+
+    constexpr float MIN_BASELINE = 30.0f; // Minimum possible baseline in mm
+
+    if (fabs(calib_data.T.at<float>(0)) < MIN_BASELINE ) { 
+      std::cerr
+          << std::endl
+          << "\t !! Warning !!" << std::endl
+          << "The value of the baseline is too small (T_x = "
+          << calib_data.T.at<float>(0) << ")." << std::endl;
+      std::cerr << "Please redo the calibration to obtain a value that is phisically coherent (at least "
+                << MIN_BASELINE << " mm)."
                 << std::endl;
 
       return EXIT_FAILURE;
