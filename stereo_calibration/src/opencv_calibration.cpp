@@ -125,20 +125,20 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
   std::cout << std::endl << "*** Calibration Report ***" << std::endl;
 
   std::cout << " * Reprojection errors: " << std::endl;
-  std::cout << "   * Left:\t" << rms_l
+  std::cout << "   * Left:\t" << rms_l << " px"
             << (rms_l > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
-  std::cout << "   * Right:\t" << rms_r
+  std::cout << "   * Right:\t" << rms_r << " px"
             << (rms_r > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
-  std::cout << "   * Stereo:\t" << err
+  std::cout << "   * Stereo:\t" << err << " px"
             << (err > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
   if (rms_l > max_repr_error || rms_r > max_repr_error ||
       err > max_repr_error) {
     std::cerr << std::endl
               << "\t!!! ERROR !!!" << std::endl
-              << "The max reprojection error looks too high (>"
+              << "The max reprojection error looks too high (> "
               << max_repr_error
-              << "), check that the lenses are clean (sharp images)"
-                 " and that the pattern is printed/mounted on a RIGID "
+              << " px). Check that the lenses are clean (sharp images)"
+                 " and that the calibration pattern is printed/mounted on a RIGID "
                  "and FLAT surface."
               << std::endl;
 
@@ -291,16 +291,6 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     return std::string();
   }
 
-  if (left.K.type() == CV_64F) {
-    std::cout << " Data type: double" << std::endl;
-  } else if (left.K.type() == CV_32F) {
-    std::cout << " Data type: float" << std::endl;
-  } else {
-    std::cerr << " !!! Cannot save the calibration file: 'Invalid data type'"
-              << std::endl;
-    return std::string();
-  }
-
   if (!is_4k) {  //  AR0234
 
     if (imageSize.height != 1200) {
@@ -367,8 +357,6 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     outfile << "RZ_FHD1200 = " << Rv.at<double>(2) << "\n\n";
 
     outfile.close();
-    std::cout << " * Parameter file written successfully: '" << calib_filename
-              << "'" << std::endl;
     return calib_filename;
   } else {  //  IMX678
 
@@ -453,8 +441,6 @@ std::string StereoCalib::saveCalibZED(int serial, bool is_4k) {
     outfile << "RZ_QHDPLUS = " << Rv.at<double>(2) << "\n\n";
 
     outfile.close();
-    std::cout << " * Parameter file written successfully: '" << calib_filename
-              << "'" << std::endl;
     return calib_filename;
   }
 }
