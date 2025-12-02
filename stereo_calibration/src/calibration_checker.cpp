@@ -9,6 +9,7 @@ constexpr size_t down_left = 3;
 
 CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
                                        size_t min_samples, size_t max_samples,
+                                      float min_target_area,
                                        DetectedBoardParams idealParams,
                                        bool verbose) {
   verbose_ = verbose;
@@ -16,6 +17,7 @@ CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
   // Calibration parameters
   min_samples_ = min_samples;
   max_samples_ = max_samples;
+  min_target_area_ = min_target_area;
   idealParams_ = idealParams;
 
   // Initialize the board parameters
@@ -159,7 +161,7 @@ DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
   float area = compute_area(outside_corners);
   float skew = compute_skew(outside_corners);
 
-  if (area < 0 || skew < 0) {
+  if (area < min_target_area_ || skew < 0) {
     // Return invalid params
     params.size = -1.0f;
     params.skew = -1.0f;

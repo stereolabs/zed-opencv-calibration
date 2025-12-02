@@ -22,6 +22,7 @@ typedef struct _detected_board_params {
 // Constants
 const size_t DEFAULT_MIN_SAMPLES = 20;
 const size_t DEFAULT_MAX_SAMPLES = 50;
+const float DEFAULT_MIN_TARGET_AREA = 0.1f;  // Ignore checkerboards smaller than 10% of the image area
 const DetectedBoardParams DEFAULT_IDEAL_PARAMS = {
     cv::Point2f(
         0.65f,  // Checkerboard X position should cover 65% of the image width
@@ -36,6 +37,7 @@ class CalibrationChecker {
   CalibrationChecker(cv::Size board_size, float square_size,
                      size_t min_samples = DEFAULT_MIN_SAMPLES,
                      size_t max_samples = DEFAULT_MAX_SAMPLES,
+                     float min_target_area = DEFAULT_MIN_TARGET_AREA,
                      DetectedBoardParams idealParams = DEFAULT_IDEAL_PARAMS,
                      bool verbose = false);
   ~CalibrationChecker() = default;
@@ -92,6 +94,8 @@ class CalibrationChecker {
                                               // consider the database complete
   size_t max_samples_ = DEFAULT_MAX_SAMPLES;  // Maximum number of samples to
                                               // consider the database complete
+
+  float min_target_area_ = DEFAULT_MIN_TARGET_AREA; // Ignore checkerboards smaller than this area (percentage of image area)
 
   bool verbose_ = false;
 };

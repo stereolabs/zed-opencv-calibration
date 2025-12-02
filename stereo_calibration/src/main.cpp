@@ -47,8 +47,10 @@ const float min_y_coverage =
 const float min_area_range = 0.45f;  // Checkerboard area range size [min_area-max_area]
 const float min_skew_range = 0.375f; // Checkerboard skew ange size [min_skew-max_skew]
 
+const float min_target_area = 0.1f; // Ignore checkerboards smaller than this area (percentage of image area)
+
 // Debug
-bool verbose = false;
+bool verbose = true;
 int sdk_verbose = 0;
 
 // Text colors
@@ -177,7 +179,8 @@ int main(int argc, char* argv[]) {
       cv::Point2f(min_x_coverage, min_y_coverage), min_area_range,
       min_skew_range};
   CalibrationChecker checker(cv::Size(h_edges, v_edges), square_size,
-                             min_samples, max_samples, idealParams, verbose);
+                             min_samples, max_samples,
+                             min_target_area, idealParams, verbose);
   // Coverage scores
   float size_score = 0.0f, skew_score = 0.0f, pos_score_x = 0.0f,
         pos_score_y = 0.0f;
