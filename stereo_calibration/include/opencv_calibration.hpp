@@ -72,16 +72,25 @@ struct CameraCalib {
     return undistorted_points;
   }
 
-  float calibrate(const std::vector<std::vector<cv::Point3f>> &object_points,
+  float mono_calibrate(const std::vector<std::vector<cv::Point3f>> &object_points,
                   const std::vector<std::vector<cv::Point2f>> &image_points,
                   const cv::Size &image_size, int flags, bool verbose) {
     float rms = -1.0f;
     std::vector<cv::Mat> rvec, tvec;
     if (disto_model_RadTan) {
       if (D.cols >= 8) flags += cv::CALIB_RATIONAL_MODEL;
+      if (verbose) {
+        std::cout << "[DEBUG][mono_calibrate] Calibrating with "
+                     "Radial-Tangential model..."
+                  << std::endl;
+      }
       rms = cv::calibrateCamera(object_points, image_points, image_size, K, D,
                                 rvec, tvec, flags);
     } else {
+      if (verbose) {
+        std::cout << "[DEBUG][mono_calibrate] Calibrating with Fisheye model..."
+                  << std::endl;
+      }
       rms = cv::fisheye::calibrate(
           object_points, image_points, image_size, K, D, rvec, tvec,
           flags + cv::fisheye::CALIB_RECOMPUTE_EXTRINSIC +
@@ -89,10 +98,11 @@ struct CameraCalib {
     }
 
     if (verbose) {
-      std::cout << " * Intrinsic matrix K:" << std::endl << K << std::endl;
-      std::cout << " * Distortion coefficients D:" << std::endl
+      std::cout << "[DEBUG][mono_calibrate] * Intrinsic matrix K:" << std::endl
+                << K << std::endl;
+      std::cout << "[DEBUG][mono_calibrate] * Distortion coefficients D:" << std::endl
                 << D << std::endl;
-      std::cout << " * Re-projection error (RMS): " << rms << std::endl;
+      std::cout << "[DEBUG][mono_calibrate] * Re-projection error (RMS): " << rms << std::endl;
     }
 
     return rms;
@@ -134,7 +144,7 @@ struct StereoCalib {
     cv::Rodrigues(Rv, R);
   }
 
-  float calibrate(
+  float stereo_calibrate(
       const std::vector<std::vector<cv::Point3f>> &object_points,
       const std::vector<std::vector<cv::Point2f>> &image_points_left,
       const std::vector<std::vector<cv::Point2f>> &image_points_right,
@@ -146,10 +156,20 @@ struct StereoCalib {
     cv::Mat E, F;
     
     if (left.disto_model_RadTan && right.disto_model_RadTan) {
+      if (verbose) {
+        std::cout
+            << "[DEBUG][stereo_calibrate] Calibrating with Radial-Tangential model..."
+            << std::endl;
+      }
       rms = cv::stereoCalibrate(object_points, image_points_left,
                                 image_points_right, left.K, left.D, right.K,
                                 right.D, image_size, R, T, E, F, flags);
     } else {
+      if (verbose) {
+        std::cout
+            << "[DEBUG][stereo_calibrate] Calibrating with Fisheye model..."
+            << std::endl;
+      }
       rms = cv::fisheye::stereoCalibrate(object_points, image_points_left,
                                          image_points_right, left.K, left.D,
                                          right.K, right.D, image_size, R, T,
@@ -159,10 +179,23 @@ struct StereoCalib {
     cv::Rodrigues(R, Rv);
 
     if (verbose) {
-      std::cout << " * Rotation matrix R:" << std::endl << R << std::endl;
-      std::cout << " * Rotation vector Rv:" << std::endl << Rv << std::endl;
-      std::cout << " * Translation vector T:" << std::endl << T << std::endl;
-      std::cout << " * Re-projection error (RMS): " << rms << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * New Intrinsic matrix K left:"
+                << std::endl
+                << left.K << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * New Distortion coefficients D left:" << std::endl
+                << left.D << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * New Intrinsic matrix K right:" << std::endl
+                << right.K << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * New Distortion coefficients D right:" << std::endl
+                << right.D << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * Re-projection error (RMS): " << rms << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * Rotation matrix R:" << std::endl
+                << R << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * Rotation vector Rv:" << std::endl
+                << Rv << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * Translation vector T:" << std::endl
+                << T << std::endl;
+      std::cout << "[DEBUG][stereo_calibrate] * Re-projection error (RMS): " << rms << std::endl;
     }
 
     return rms;

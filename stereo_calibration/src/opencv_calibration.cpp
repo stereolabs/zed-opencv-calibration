@@ -102,21 +102,16 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
   auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
 
   std::cout << "Left camera calibration... " << std::flush;
-
-  auto rms_l = calib_data.left.calibrate(object_points, pts_l, imageSize, flags,
-                                         verbose);
+  auto rms_l = calib_data.left.mono_calibrate(object_points, pts_l, imageSize, flags, verbose);
   std::cout << "Done." << std::endl;
 
   std::cout << "Right camera calibration... " << std::flush;
-
-  auto rms_r = calib_data.right.calibrate(object_points, pts_r, imageSize,
-                                          flags, verbose);
-
+  auto rms_r = calib_data.right.mono_calibrate(object_points, pts_r, imageSize, flags, verbose);
   std::cout << "Done." << std::endl;
 
   std::cout << "Stereo calibration... " << std::flush;
 
-  auto err = calib_data.calibrate(
+  auto err = calib_data.stereo_calibrate(
       object_points, pts_l, pts_r, imageSize,
       cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
 

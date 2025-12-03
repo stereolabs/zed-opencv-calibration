@@ -41,9 +41,9 @@ const float max_repr_error = 0.5;  // in pixels
 const int min_samples = 25;
 const int max_samples = 40;
 const float min_x_coverage =
-    0.7f;  // Checkerboard X position covering percentage of the image width
+    0.6f;  // Checkerboard X position covering percentage of the image width
 const float min_y_coverage =
-    0.7f;  // Checkerboard Y position covering percentage of the image height
+    0.6f;  // Checkerboard Y position covering percentage of the image height
 const float min_area_range = 0.45f;  // Checkerboard area range size [min_area-max_area]
 const float min_skew_range = 0.375f; // Checkerboard skew ange size [min_skew-max_skew]
 
@@ -356,7 +356,7 @@ int main(int argc, char* argv[]) {
   if (fs::exists(image_folder)) {
     std::uintmax_t n{fs::remove_all(image_folder)};
     if (verbose) {
-      std::cout << " * Removed " << n
+      std::cout << "[DEBUG][main] * Removed " << n
                 << " temporary files or directories from previous calibration."
                 << std::endl;
     }
@@ -447,7 +447,7 @@ int main(int argc, char* argv[]) {
 
         if (low_target_variability_on_last_pics) {
           cv::putText(rendering_image,
-                      " * Target too similar to a previous acquisition.",
+                      " * Target too similar to a previous acquisition or too small.",
                       cv::Point(display.size[1] / 2, display.size[0] + 140),
                       cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
         }
@@ -557,8 +557,7 @@ int main(int argc, char* argv[]) {
             addNewCheckerboardPosition(coverage_indicator, pos_indicator,
                                        norm_x, norm_y, norm_size);
           } else {
-            std::cout << " ! Sample detected but not valid. Please check the "
-                         "checkerboard position and angle."
+            std::cout << " ! Sample detected but not valid. Please try again with a new position."
                       << std::endl;
             low_target_variability_on_last_pics = true;
           }

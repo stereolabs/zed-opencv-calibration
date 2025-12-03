@@ -168,7 +168,7 @@ DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
     return params;
   }
 
-  float border = std::sqrt(area);
+  //float border = std::sqrt(area);
 
   // For X and Y, we "shrink" the image all around by approx.half the board
   // size. Otherwise large boards are penalized because you can't get much X/Y
@@ -182,10 +182,10 @@ DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
   avg_x /= static_cast<float>(corners.size());
   avg_y /= static_cast<float>(corners.size());
 
-  float p_x = std::min(1.0f, std::max(0.0f, (avg_x - border / 2.0f) /
-                                                (image_size.width - border)));
-  float p_y = std::min(1.0f, std::max(0.0f, (avg_y - border / 2.0f) /
-                                                (image_size.height - border)));
+  //float p_x = std::min(1.0f, std::max(0.0f, (avg_x - border / 2.0f) / (image_size.width - border)));
+  //float p_y = std::min(1.0f, std::max(0.0f, (avg_y - border / 2.0f) / (image_size.height - border)));
+  float p_x = std::min(1.0f, std::max(0.0f, avg_x / image_size.width));
+  float p_y = std::min(1.0f, std::max(0.0f, avg_y / image_size.height));
 
   params.pos = cv::Point2f(p_x, p_y);
   params.size = std::sqrt(area / (image_size.width * image_size.height));
@@ -201,73 +201,76 @@ bool CalibrationChecker::isGoodSample(const DetectedBoardParams& params) {
 
   // Original similarity check from:
   // https://github.com/ros-perception/image_pipeline/blob/rolling/camera_calibration/src/camera_calibration/calibrator.py#L485-L507
-  // auto param_distance = [](const DetectedBoardParams& p1,
-  //                          const DetectedBoardParams& p2) -> float {
-  //   return std::abs(p1.size - p2.size) + std::abs(p1.skew - p2.skew) +
-  //          std::abs(p1.pos.x - p2.pos.x) + std::abs(p1.pos.y - p2.pos.y);
+  auto param_distance = [](const DetectedBoardParams& p1,
+                           const DetectedBoardParams& p2) -> float {
+    return std::abs(p1.size - p2.size) 
+            + std::abs(p1.skew - p2.skew)
+            + std::abs(p1.pos.x - p2.pos.x)
+            + std::abs(p1.pos.y - p2.pos.y);
+  };
+
+  int idx = 0;
+  for (auto& stored_params : paramDb_) {
+    float dist = param_distance(params, stored_params);
+    if (dist < 0.2f) {  // TODO tune the threshold
+      std::cout << "  Rejected: Too similar to sample #" << idx << " (dist=" <<
+      dist << ")" << std::endl;
+      return false;
+    }
+    idx++;
+  }
+
+  return true;
+
+  // // New similarity check:
+  // auto is_different = [this](const DetectedBoardParams& p1,
+  //                            const DetectedBoardParams& p2) -> bool {
+  //   // Check that at least one parameter differs by at least 10% from all the
+  //   // stored samples
+  //   constexpr float epsilon = 1e-6f;
+  //   float pos_x_diff = std::abs(p1.pos.x - p2.pos.x) / std::max(std::max(p1.pos.x, p2.pos.x), epsilon);
+  //   float pos_y_diff = std::abs(p1.pos.y - p2.pos.y) / std::max(std::max(p1.pos.y, p2.pos.y), epsilon);
+  //   float size_diff = std::abs(p1.size - p2.size) / std::max(std::max(p1.size, p2.size), epsilon);
+  //   float skew_diff = std::abs(p1.skew - p2.skew) / std::max(std::max(p1.skew, p2.skew), epsilon);
+
+  //   const float diff_thresh = 0.1f;  // 10% difference threshold
+
+  //   if (verbose_) {
+  //     std::cout << "[DEBUG][isGoodSample] Comparing: " << std::endl
+  //               << std::setprecision(3) 
+  //               << " * Pos(" << p1.pos.x << ", "<< p1.pos.y << "), Size: " << p1.size << ", Skew: " << p1.skew << std::endl
+  //               << " * Pos(" << p2.pos.x << ", "<< p2.pos.y << "), Size: " << p2.size << ", Skew: " << p2.skew << std::endl;
+  //     std::cout << std::setprecision(3)
+  //               << " * dPosX: " << pos_x_diff * 100.0f << "%, " << std::endl
+  //               << " * dPosY: " << pos_y_diff * 100.0f << "%, " << std::endl
+  //               << " * dSize: " << size_diff * 100.0f << "%, " << std::endl
+  //               << " * dSkew: " << skew_diff * 100.0f << "%" << std::endl;
+  //   }
+
+  //   if (size_diff > diff_thresh || skew_diff > diff_thresh ||
+  //       pos_x_diff > diff_thresh || pos_y_diff > diff_thresh) {
+  //     if (verbose_) {
+  //       std::cout << " => Different enough" << std::endl;
+  //     }
+  //     return true;  // At least one parameter is sufficiently different
+  //   }
+
+  //   if (verbose_) {
+  //     std::cout << " => Too similar" << std::endl;
+  //   }
+
+  //   return false;  // All parameters are too similar
   // };
 
   // for (auto& stored_params : paramDb_) {
-  //   float dist = param_distance(params, stored_params);
-  //   if (dist < 0.2f) {  // TODO tune the threshold
-  //     std::cout << "  Rejected: Too similar to existing samples (dist=" <<
-  //     dist
-  //               << ")" << std::endl;
+  //   // Stop at the first similar sample found
+  //   if (!is_different(params, stored_params)) {
+  //     std::cout << "Rejected: Too similar to an existing sample" << std::endl;
   //     return false;
   //   }
   // }
 
   // return true;
-
-  // New similarity check:
-  auto is_different = [this](const DetectedBoardParams& p1,
-                             const DetectedBoardParams& p2) -> bool {
-    // Check that at least one parameter differs by at least 10% from all the
-    // stored samples
-    constexpr float epsilon = 1e-6f;
-    float pos_x_diff =
-        std::abs(p1.pos.x - p2.pos.x) / std::max(std::max(p1.pos.x, p2.pos.x), epsilon);
-    float pos_y_diff =
-        std::abs(p1.pos.y - p2.pos.y) / std::max(std::max(p1.pos.y, p2.pos.y), epsilon);
-    float size_diff = std::abs(p1.size - p2.size) / std::max(std::max(p1.size, p2.size), epsilon);
-    float skew_diff = std::abs(p1.skew - p2.skew) / std::max(std::max(p1.skew, p2.skew), epsilon);
-
-    const float diff_thresh = 0.1f;  // 10% difference threshold
-
-    if (verbose_) {
-      std::cout << "Comparing to: Pos(" << p2.pos.x << ", " << p2.pos.y
-                << "), Size: " << p2.size << ", Skew: " << p2.skew << std::endl;
-      std::cout << std::setprecision(3) << "PosX diff: " << pos_x_diff * 100.0f
-                << "%, "
-                << "PosY diff: " << pos_y_diff * 100.0f << "%, "
-                << "Size diff: " << size_diff * 100.0f << "%, "
-                << "Skew diff: " << skew_diff * 100.0f << "%";
-    }
-
-    if (size_diff > diff_thresh || skew_diff > diff_thresh ||
-        pos_x_diff > diff_thresh || pos_y_diff > diff_thresh) {
-      if (verbose_) {
-        std::cout << " => Different enough." << std::endl;
-      }
-      return true;  // At least one parameter is sufficiently different
-    }
-
-    if (verbose_) {
-      std::cout << " => Too similar." << std::endl;
-    }
-
-    return false;  // All parameters are too similar
-  };
-
-  for (auto& stored_params : paramDb_) {
-    // Stop at the first similar sample found
-    if (!is_different(params, stored_params)) {
-      std::cout << "  Rejected: Too similar to an existing sample" << std::endl;
-      return false;
-    }
-  }
-
-  return true;
 }
 
 bool CalibrationChecker::evaluateSampleCollectionStatus(
