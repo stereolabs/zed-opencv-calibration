@@ -122,9 +122,9 @@ struct StereoCalib {
   void initDefault(bool radtan) {
     left.initDefault(radtan);
     right.initDefault(radtan);
-    R = cv::Mat::eye(3, 3, CV_32FC1);
-    Rv = cv::Mat::zeros(3, 1, CV_32FC1);
-    T = cv::Mat::zeros(3, 1, CV_32FC1);
+    R = cv::Mat::eye(3, 3, CV_64FC1);
+    Rv = cv::Mat::zeros(3, 1, CV_64FC1);
+    T = cv::Mat::zeros(3, 1, CV_64FC1);
   }
 
   void setFrom(const sl::CalibrationParameters &calib_params) {

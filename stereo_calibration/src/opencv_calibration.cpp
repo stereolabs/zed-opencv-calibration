@@ -1,5 +1,7 @@
 #include "opencv_calibration.hpp"
 
+#include <filesystem>
+
 int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
               int h_edges, int v_edges, float square_size, int serial,
               bool is_dual_mono, bool is_4k, bool save_calib_mono,
@@ -11,6 +13,21 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   std::cout << std::endl
             << "Loading the stored images from folder: " << folder << std::endl;
+
+  // Count images in the folder
+  if (img_count==-1) {
+    std::cout << " * Counting images in the folder..." << std::endl;
+    int actual_img_count = 0;
+    for (int i = 0; i < img_count; i++) {
+      std::string left_path = folder + "image_left_" + std::to_string(i) + ".png";
+      std::string right_path = folder + "image_right_" + std::to_string(i) + ".png";
+      if (std::filesystem::exists(left_path) && std::filesystem::exists(right_path)) {
+        actual_img_count++;
+      }
+    }
+    img_count = actual_img_count;
+    std::cout << "   - Found " << img_count << " images." << std::endl;
+  }
 
   for (int i = 0; i < img_count; i++) {
     std::cout << "." << std::flush;
@@ -82,7 +99,8 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
       object_points.push_back(pattern_points);
     } else {
       std::cout << std::endl
-                << "- No valid targets detected on frames #" << i << " -" << std::endl;
+                << "- No valid targets detected on frames #" << i << " -"
+                << std::endl;
     }
   }
 
@@ -96,17 +114,25 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     return EXIT_FAILURE;
   }
 
-  std::cout << std::endl << " * Valid samples: " << pts_l.size() << "/" << img_count
+  std::cout << std::endl
+            << " * Valid samples: " << pts_l.size() << "/" << img_count
             << std::endl;
 
   auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
+  if (use_intrinsic_prior) {
+    std::cout
+        << "[DEBUG][calibrate] Using intrinsic parameters as calibration prior."
+        << std::endl;
+  }
 
   std::cout << "Left camera calibration... " << std::flush;
-  auto rms_l = calib_data.left.mono_calibrate(object_points, pts_l, imageSize, flags, verbose);
+  auto rms_l = calib_data.left.mono_calibrate(object_points, pts_l, imageSize,
+                                              flags, verbose);
   std::cout << "Done." << std::endl;
 
   std::cout << "Right camera calibration... " << std::flush;
-  auto rms_r = calib_data.right.mono_calibrate(object_points, pts_r, imageSize, flags, verbose);
+  auto rms_r = calib_data.right.mono_calibrate(object_points, pts_r, imageSize,
+                                               flags, verbose);
   std::cout << "Done." << std::endl;
 
   std::cout << "Stereo calibration... " << std::flush;
@@ -121,21 +147,24 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   std::cout << " * Reprojection errors: " << std::endl;
   std::cout << "   * Left:\t" << rms_l << " px"
-            << (rms_l > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
+            << (rms_l > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD")
+            << std::endl;
   std::cout << "   * Right:\t" << rms_r << " px"
-            << (rms_r > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
+            << (rms_r > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD")
+            << std::endl;
   std::cout << "   * Stereo:\t" << err << " px"
-            << (err > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD") << std::endl;
+            << (err > max_repr_error ? "\t!!! TOO HIGH !!!" : "\t-> GOOD")
+            << std::endl;
   if (rms_l > max_repr_error || rms_r > max_repr_error ||
       err > max_repr_error) {
-    std::cerr << std::endl
-              << "\t!!! ERROR !!!" << std::endl
-              << "The max reprojection error looks too high (> "
-              << max_repr_error
-              << " px). Check that the lenses are clean (sharp images)"
-                 " and that the calibration pattern is printed/mounted on a RIGID "
-                 "and FLAT surface."
-              << std::endl;
+    std::cerr
+        << std::endl
+        << "\t!!! ERROR !!!" << std::endl
+        << "The max reprojection error looks too high (> " << max_repr_error
+        << " px). Check that the lenses are clean (sharp images)"
+           " and that the calibration pattern is printed/mounted on a RIGID "
+           "and FLAT surface."
+        << std::endl;
 
     return EXIT_FAILURE;
   }
