@@ -3,9 +3,9 @@
 #include <filesystem>
 
 int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
-              int h_edges, int v_edges, float square_size, int serial,
+              int h_edges, int v_edges, double square_size, int serial,
               bool is_dual_mono, bool is_4k, bool save_calib_mono,
-              bool use_intrinsic_prior, float max_repr_error, bool verbose) {
+              bool use_intrinsic_prior, double max_repr_error, bool verbose) {
   std::vector<cv::Mat> left_images, right_images;
 
   /// Read images
@@ -60,11 +60,13 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
             << " * " << left_images.size() << " samples collected" << std::endl;
 
   // Define object points of the target
+  // Note: object points must be point3f. Point3d is not supported by
+  // 'cv::calibrateCamera'
   std::vector<cv::Point3f> pattern_points;
   for (int i = 0; i < v_edges; i++) {
     for (int j = 0; j < h_edges; j++) {
       pattern_points.push_back(
-          cv::Point3f(square_size * j, square_size * i, 0));
+          cv::Point3f(static_cast<float>(square_size * j), static_cast<float>(square_size * i), 0));
     }
   }
 
@@ -77,25 +79,26 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   for (int i = 0; i < left_images.size(); i++) {
     std::cout << "." << std::flush;
-    std::vector<cv::Point2f> pts_l_, pts_r_;
+    std::vector<cv::Point2f> pts_l_f, pts_r_f;
     bool found_l =
-        cv::findChessboardCorners(left_images.at(i), t_size, pts_l_, 3);
+        cv::findChessboardCorners(left_images.at(i), t_size, pts_l_f, 3);
     bool found_r =
-        cv::findChessboardCorners(right_images.at(i), t_size, pts_r_, 3);
+        cv::findChessboardCorners(right_images.at(i), t_size, pts_r_f, 3);
 
     if (found_l && found_r) {
+
       cv::cornerSubPix(
-          left_images.at(i), pts_l_, cv::Size(5, 5), cv::Size(-1, -1),
+          left_images.at(i), pts_l_f, cv::Size(5, 5), cv::Size(-1, -1),
           cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::MAX_ITER,
                            30, 0.001));
 
       cv::cornerSubPix(
-          right_images.at(i), pts_r_, cv::Size(5, 5), cv::Size(-1, -1),
+          right_images.at(i), pts_r_f, cv::Size(5, 5), cv::Size(-1, -1),
           cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::MAX_ITER,
-                           30, 0.001));
+                           30, 0.001));    
 
-      pts_l.push_back(pts_l_);
-      pts_r.push_back(pts_r_);
+      pts_l.push_back(pts_l_f);
+      pts_r.push_back(pts_r_f);
       object_points.push_back(pattern_points);
     } else {
       std::cout << std::endl
@@ -139,7 +142,9 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
 
   auto err = calib_data.stereo_calibrate(
       object_points, pts_l, pts_r, imageSize,
-      cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY, verbose);
+      cv::CALIB_FIX_INTRINSIC + cv::CALIB_ZERO_DISPARITY,
+      // cv::CALIB_USE_INTRINSIC_GUESS + cv::CALIB_ZERO_DISPARITY,
+      verbose);
 
   std::cout << "Done." << std::endl;
 
@@ -170,9 +175,9 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
   }
 
   if (calib_data.left.K.type() == CV_64F) {
-    std::cout << " * Data type: double" << std::endl;
+    std::cout << " * Data type: 'double'" << std::endl;
   } else if (calib_data.left.K.type() == CV_32F) {
-    std::cout << " * Data type: float" << std::endl;
+    std::cout << " * Data type: 'float'" << std::endl;
   } else {
     std::cerr << " !!! Cannot save the calibration file: 'Invalid data type'"
               << std::endl;
@@ -202,7 +207,7 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
     return EXIT_FAILURE;
   }
 
-  constexpr float MIN_BASELINE = 30.0f;  // Minimum possible baseline in mm
+  constexpr double MIN_BASELINE = 30.0f;  // Minimum possible baseline in mm
 
   if (fabs(calib_data.T.at<double>(0)) < MIN_BASELINE) {
     std::cerr << std::endl

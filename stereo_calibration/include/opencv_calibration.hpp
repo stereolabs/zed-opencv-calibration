@@ -20,24 +20,24 @@ struct CameraCalib {
 
   void initDefault(bool radtan) {
     disto_model_RadTan = radtan;
-    K = cv::Mat::eye(3, 3, CV_32FC1);
+    K = cv::Mat::eye(3, 3, CV_64FC1);
     if (disto_model_RadTan) {
       // Radial and tangential distortion
       const int nb_coeff = 8;  // 6 radial + 2 tangential; could be extended to
                                // 12 with prism distortion
-      D = cv::Mat::zeros(1, nb_coeff, CV_32FC1);
+      D = cv::Mat::zeros(1, nb_coeff, CV_64FC1);
     } else {
       // Fisheye model has 4 coefficients: k1, k2, k3, k4
-      D = cv::Mat::zeros(1, 4, CV_32FC1);
+      D = cv::Mat::zeros(1, 4, CV_64FC1);
     }
   }
 
   void setFrom(const sl::CameraParameters &cam) {
-    K = cv::Mat::eye(3, 3, CV_32FC1);
-    K.at<float>(0, 0) = cam.fx;
-    K.at<float>(1, 1) = cam.fy;
-    K.at<float>(0, 2) = cam.cx;
-    K.at<float>(1, 2) = cam.cy;
+    K = cv::Mat::eye(3, 3, CV_64FC1);
+    K.at<double>(0, 0) = static_cast<double>(cam.fx);
+    K.at<double>(1, 1) = static_cast<double>(cam.fy);
+    K.at<double>(0, 2) = static_cast<double>(cam.cx);
+    K.at<double>(1, 2) = static_cast<double>(cam.cy);
 
     // tangential distortion coefficients are not used in the Fisheye model,
     // looking for p1 and p2 equal to 0
@@ -45,25 +45,25 @@ struct CameraCalib {
         cam.disto[5] != 0.) {
       disto_model_RadTan = false;  // -> Fisheye model
       // Fisheye model has 4 coefficients: k1, k2, k3, k4
-      D = cv::Mat::zeros(1, 4, CV_32FC1);
-      D.at<float>(0) = cam.disto[0];
-      D.at<float>(1) = cam.disto[1];
-      D.at<float>(2) = cam.disto[4];
-      D.at<float>(3) = cam.disto[5];
+      D = cv::Mat::zeros(1, 4, CV_64FC1);
+      D.at<double>(0) = cam.disto[0];
+      D.at<double>(1) = cam.disto[1];
+      D.at<double>(2) = cam.disto[4];
+      D.at<double>(3) = cam.disto[5];
     } else {
       disto_model_RadTan = true;  // Radial and tangential distortion
       const int nb_coeff = 8;     // 6 radial + 2 tangential; could be extended
                                   // to 12 with prism distortion
-      D = cv::Mat::zeros(1, nb_coeff, CV_32FC1);
-      for (int i = 0; i < nb_coeff; i++) D.at<float>(i) = cam.disto[i];
+      D = cv::Mat::zeros(1, nb_coeff, CV_64FC1);
+      for (int i = 0; i < nb_coeff; i++) D.at<double>(i) = cam.disto[i];
     }
   }
 
-  std::vector<cv::Point2f> undistortPoints(
-      const std::vector<cv::Point2f> &points) const {
+  std::vector<cv::Point2d> undistortPoints(
+      const std::vector<cv::Point2d> &points) const {
     std::cout << "K:" << std::endl << K << std::endl;
     std::cout << "D:" << std::endl << D << std::endl;
-    std::vector<cv::Point2f> undistorted_points;
+    std::vector<cv::Point2d> undistorted_points;
     if (disto_model_RadTan) {
       cv::undistortPoints(points, undistorted_points, K, D);
     } else {
@@ -72,13 +72,22 @@ struct CameraCalib {
     return undistorted_points;
   }
 
-  float mono_calibrate(const std::vector<std::vector<cv::Point3f>> &object_points,
+  // Note: object_points and image_points must be point3f. Point3d formatis not
+  // supported by 'cv::calibrateCamera'
+  double mono_calibrate(const std::vector<std::vector<cv::Point3f>> &object_points,
                   const std::vector<std::vector<cv::Point2f>> &image_points,
                   const cv::Size &image_size, int flags, bool verbose) {
-    float rms = -1.0f;
+    double rms = -1.0f;
     std::vector<cv::Mat> rvec, tvec;
     if (disto_model_RadTan) {
-      if (D.cols >= 8) flags += cv::CALIB_RATIONAL_MODEL;
+      if (D.cols >= 8) {
+        flags += cv::CALIB_RATIONAL_MODEL;
+        if (verbose) {
+          std::cout << "[DEBUG][mono_calibrate] Using "
+                       "Rational model (8 distortion coefficients) for calibration..."
+                    << std::endl;
+        }
+      }
       if (verbose) {
         std::cout << "[DEBUG][mono_calibrate] Calibrating with "
                      "Radial-Tangential model..."
@@ -132,19 +141,21 @@ struct StereoCalib {
     right.setFrom(calib_params.right_cam);
 
     auto translation = calib_params.stereo_transform.getTranslation();
-    T.at<float>(0) = translation.x * -1;  // the zed configuration file store
+    T.at<double>(0) = translation.x * -1;  // the zed configuration file store
                                           // the absolute value of the Tx part
-    T.at<float>(1) = translation.y;
-    T.at<float>(2) = translation.z;
+    T.at<double>(1) = translation.y;
+    T.at<double>(2) = translation.z;
 
     auto rot = calib_params.stereo_transform.getRotationVector();
-    Rv.at<float>(0) = rot.x;
-    Rv.at<float>(1) = rot.y;
-    Rv.at<float>(2) = rot.z;
+    Rv.at<double>(0) = rot.x;
+    Rv.at<double>(1) = rot.y;
+    Rv.at<double>(2) = rot.z;
     cv::Rodrigues(Rv, R);
   }
 
-  float stereo_calibrate(
+  // Note: object_points and image_points must be point3f. Point3d format is not
+  // supported by 'cv::stereoCalibrate'
+  double stereo_calibrate(
       const std::vector<std::vector<cv::Point3f>> &object_points,
       const std::vector<std::vector<cv::Point2f>> &image_points_left,
       const std::vector<std::vector<cv::Point2f>> &image_points_right,
@@ -152,7 +163,7 @@ struct StereoCalib {
     
     imageSize = image_size;
     
-    float rms = 0.0;
+    double rms = 0.0;
     cv::Mat E, F;
     
     if (left.disto_model_RadTan && right.disto_model_RadTan) {
@@ -161,6 +172,15 @@ struct StereoCalib {
             << "[DEBUG][stereo_calibrate] Calibrating with Radial-Tangential model..."
             << std::endl;
       }
+      if (left.D.cols >= 8 && right.D.cols >= 8) {
+        flags += cv::CALIB_RATIONAL_MODEL;
+        if (verbose) {
+          std::cout << "[DEBUG][stereo_calibrate] Using "
+                       "Rational model (8 distortion coefficients) for stereo calibration..."
+                    << std::endl;
+        }
+      }
+
       rms = cv::stereoCalibrate(object_points, image_points_left,
                                 image_points_right, left.K, left.D, right.K,
                                 right.D, image_size, R, T, E, F, flags);
@@ -206,7 +226,7 @@ struct StereoCalib {
 };
 
 int calibrate(int img_count, const std::string &folder, StereoCalib &raw_data,
-              int h_edges, int v_edges, float square_size, int serial,
+              int h_edges, int v_edges, double square_size, int serial,
               bool is_dual_mono, bool is_4k, bool save_calib_mono = false,
-              bool use_intrinsic_prior = false, float max_repr_error = 0.5f,
+              bool use_intrinsic_prior = false, double max_repr_error = 0.5f,
               bool verbose = false);

@@ -39,15 +39,15 @@ const cv::Size display_size(720, 404);  // Size of the rendered images
 /// Calibration condition
 const float max_repr_error = 0.5;  // in pixels
 const int min_samples = 25;
-const int max_samples = 40;
+const int max_samples = 35;
 const float min_x_coverage =
     0.6f;  // Checkerboard X position covering percentage of the image width
 const float min_y_coverage =
     0.6f;  // Checkerboard Y position covering percentage of the image height
 const float min_area_range =
-    0.45f;  // Checkerboard area range size [min_area-max_area]
+    0.40f;  // Checkerboard area range size [min_area-max_area]
 const float min_skew_range =
-    0.375f;  // Checkerboard skew ange size [min_skew-max_skew]
+    0.35f;  // Checkerboard skew ange size [min_skew-max_skew]
 
 const float min_target_area = 0.1f;  // Ignore checkerboards smaller than this
                                      // area (percentage of image area)
@@ -79,10 +79,10 @@ struct Args {
   std::string app_name;
   std::string svo_path = "";
   bool is_radtan_lens = true;
-  bool is_zed_x_one_virtual_stereo = true;
+  bool is_zed_x_one_virtual_stereo = false;
   bool is_zed_sdk_format = false;
-  int left_camera_id = 0;
-  int right_camera_id = 1;
+  int left_camera_id = -1;
+  int right_camera_id = -1;
   int left_camera_sn = -1;
   int right_camera_sn = -1;
   bool use_stored_images = false;
@@ -334,14 +334,22 @@ int main(int argc, char* argv[]) {
       return 1;
     }
 
+    zed_info = zed_camera.getCameraInformation();
+
+    // Print camera information
+    std::cout << " * Camera Model: "
+              << sl::toString(zed_info.camera_model) << std::endl;
+    std::cout << " * Camera Serial Number: " << zed_info.serial_number << std::endl;
+    std::cout << " * Camera Resolution: "
+              << zed_info.camera_configuration.resolution.width << " x "
+              << zed_info.camera_configuration.resolution.height << std::endl;
+
     // change can_use_calib_prior if you dont want to use the calibration file
-    can_use_calib_prior =
-        status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
+    can_use_calib_prior = false;
+    //status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
 
     std::cout << " * Using prior calibration: "
-              << (can_use_calib_prior ? "Yes" : "No") << std::endl;
-
-    zed_info = zed_camera.getCameraInformation();
+              << (can_use_calib_prior ? "Yes" : "No") << std::endl;    
 
     if (can_use_calib_prior)
       calib.setFrom(zed_info.camera_configuration.calibration_parameters_raw);
@@ -511,7 +519,7 @@ int main(int argc, char* argv[]) {
                       (skew_score > 1.0f ? info_color : warn_color), 1);
 
           std::stringstream ss_img_count;
-          ss_img_count << " * Sample saved: " << image_count << " [min. "
+          ss_img_count << " * Sample saved: " << std::max(image_count,0) << " [min. "
                        << min_samples << "]";
           cv::putText(rendering_image, ss_img_count.str(),
                       cv::Point(10, display.size[0] + 175),
