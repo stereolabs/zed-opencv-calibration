@@ -28,6 +28,8 @@ std::map<std::string, std::string> parseArguments(int argc, char* argv[]);
 void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
                                 cv::Mat& pos_indicator, float norm_x,
                                 float norm_y, float norm_size);
+void addNewCheckerboardPoly(cv::Mat& coverage_indicator,
+                            const std::vector<cv::Point2f>& pts_l);
 void applyCoverageIndicatorOverlay(cv::Mat& image,
                                    const cv::Mat& coverage_indicator);
 void applyPosIndicatorOverlay(cv::Mat& image, const cv::Mat& pos_indicator);
@@ -41,13 +43,13 @@ const float max_repr_error = 0.5;  // in pixels
 const int min_samples = 25;
 const int max_samples = 35;
 const float min_x_coverage =
-    0.6f;  // Checkerboard X position covering percentage of the image width
+    0.65f;  // Checkerboard X position covering percentage of the image width
 const float min_y_coverage =
-    0.6f;  // Checkerboard Y position covering percentage of the image height
+    0.65f;  // Checkerboard Y position covering percentage of the image height
 const float min_area_range =
-    0.40f;  // Checkerboard area range size [min_area-max_area]
+    0.4f;  // Checkerboard area range size [min_area-max_area]
 const float min_skew_range =
-    0.35f;  // Checkerboard skew ange size [min_skew-max_skew]
+    0.375f;  // Checkerboard skew ange size [min_skew-max_skew]
 
 const float min_target_area = 0.1f;  // Ignore checkerboards smaller than this
                                      // area (percentage of image area)
@@ -80,7 +82,6 @@ struct Args {
   std::string svo_path = "";
   bool is_radtan_lens = true;
   bool is_zed_x_one_virtual_stereo = false;
-  bool is_zed_sdk_format = false;
   int left_camera_id = -1;
   int right_camera_id = -1;
   int left_camera_sn = -1;
@@ -95,10 +96,8 @@ struct Args {
         svo_path = argv[++i];
       } else if (arg == "--fisheye") {
         is_radtan_lens = false;
-      } else if (arg == "--zedxone") {
+      } else if (arg == "--virtual") {
         is_zed_x_one_virtual_stereo = true;
-      } else if (arg == "--zed_sdk_format") {
-        is_zed_sdk_format = true;
       } else if (arg == "--left_id" && i + 1 < argc) {
         left_camera_id = std::stoi(argv[++i]);
       } else if (arg == "--right_id" && i + 1 < argc) {
@@ -126,27 +125,24 @@ struct Args {
         std::cout << "  --square_size <value>  Size of a square in the "
                      "checkerboard (in mm)"
                   << std::endl;
-        std::cout << "  --svo <file>      Path to the SVO file" << std::endl;
-        std::cout << "  --fisheye         Use fisheye lens model" << std::endl;
-        std::cout << "  --zedxone         Use ZED X One cameras as a virtual "
-                     "stereo pair"
+        std::cout << "  --svo <file>      Path to the SVO file." << std::endl;
+        std::cout << "  --fisheye         Use fisheye lens model." << std::endl;
+        std::cout << "  --virtual         Use ZED X One cameras as a virtual "
+                     "stereo pair."
                   << std::endl;
         std::cout << "  --left_id <id>    Id of the left camera if using "
-                     "virtual stereo"
+                     "virtual stereo."
                   << std::endl;
         std::cout << "  --right_id <id>   Id of the right camera if using "
-                     "virtual stereo"
+                     "virtual stereo."
                   << std::endl;
         std::cout << "  --left_sn <sn>    S/N of the left camera if using "
-                     "virtual stereo"
+                     "virtual stereo."
                   << std::endl;
         std::cout << "  --right_sn <sn>   S/N of the right camera if using "
-                     "virtual stereo"
+                     "virtual stereo."
                   << std::endl;
-        std::cout << "  --zed_sdk_format  Save calibration file in "
-                     "ZED SDK format"
-                  << std::endl;
-        std::cout << "  --help, -h        Show this help message" << std::endl
+        std::cout << "  --help, -h        Show this help message." << std::endl
                   << std::endl;
         std::cout << "Examples:" << std::endl;
         std::cout << std::endl
@@ -154,14 +150,14 @@ struct Args {
         std::cout << "  " << argv[0] << " --svo camera.svo" << std::endl;
         std::cout << std::endl
                   << "* Virtual Stereo Camera using camera IDs:" << std::endl;
-        std::cout << "  " << argv[0] << " --zedxone --left_id 0 --right_id 1"
+        std::cout << "  " << argv[0] << " --virtual --left_id 0 --right_id 1"
                   << std::endl;
         std::cout << std::endl
                   << "* Virtual Stereo Camera using camera serial numbers and "
                      "a custom checkerboard:"
                   << std::endl;
         std::cout << "  " << argv[0]
-                  << " --zedxone --left_sn 301528071 --right_sn 300473441 "
+                  << " --virtual --left_sn 301528071 --right_sn 300473441 "
                      "--h_edges 12 --v_edges 9 --square_size 30.0"
                   << std::endl;
         std::cout << std::endl
@@ -170,7 +166,7 @@ struct Args {
                   << std::endl;
         std::cout
             << "  " << argv[0]
-            << " --fisheye --zedxone --left_sn 301528071 --right_sn 300473441"
+            << " --fisheye --virtual --left_sn 301528071 --right_sn 300473441"
             << std::endl;
         std::cout << std::endl;
         exit(0);
@@ -239,7 +235,7 @@ int main(int argc, char* argv[]) {
     init_params.camera_disable_self_calib = true;
     init_params.sdk_verbose = sdk_verbose;
 
-    // Configure the Virtual Stereo Camera if '--zedxone' argument is provided
+    // Configure the Virtual Stereo Camera if '--virtual' argument is provided
     if (args.is_zed_x_one_virtual_stereo) {
       std::cout << " * Virtual Stereo Camera mode enabled." << std::endl;
       is_dual_mono_camera = true;
@@ -551,6 +547,7 @@ int main(int argc, char* argv[]) {
           missing_target_on_last_pics = !found_r || !found_l;
 
           if (found_l && found_r) {
+            auto scaled_pts_l = pts_l;
             scaleKP(
                 pts_l, display_size,
                 cv::Size(camera_resolution.width, camera_resolution.height));
@@ -587,8 +584,9 @@ int main(int argc, char* argv[]) {
               float norm_x = checker.getLastDetectedBoardParams().pos.x;
               float norm_y = checker.getLastDetectedBoardParams().pos.y;
               float norm_size = checker.getLastDetectedBoardParams().size;
-              addNewCheckerboardPosition(coverage_indicator, pos_indicator,
-                                         norm_x, norm_y, norm_size);
+              addNewCheckerboardPosition( coverage_indicator, pos_indicator,
+                                          norm_x, norm_y, norm_size);
+              addNewCheckerboardPoly(coverage_indicator, scaled_pts_l);
             } else {
               std::cout << " ! Sample detected but not valid. Please try again "
                            "with a new position."
@@ -623,11 +621,10 @@ static int top_right_count = 0;
 static int bottom_left_count = 0;
 static int bottom_right_count = 0;
 
-void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
-                                cv::Mat& pos_indicator, float norm_x,
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indicator, float norm_x,
                                 float norm_y, float norm_size) {
-  int x = static_cast<int>(norm_x * coverage_indicator.cols);
-  int y = static_cast<int>(norm_y * coverage_indicator.rows);
+  int x = static_cast<int>(norm_x * pos_indicator.cols);
+  int y = static_cast<int>(norm_y * pos_indicator.rows);
   int size = static_cast<int>(norm_size * 20.0f);
   cv::circle(pos_indicator, cv::Point(x, y), size, cv::Scalar(255, 255, 255),
              -1);
@@ -667,6 +664,27 @@ void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
         cv::Point(coverage_indicator.cols, coverage_indicator.rows),
         cv::Scalar(255), -1);
   }
+}
+
+void addNewCheckerboardPoly(cv::Mat& coverage_indicator,
+                            const std::vector<cv::Point2f>& pts_l) {
+
+  cv::Point tl = pts_l[0];
+  cv::Point tr = pts_l[h_edges - 1];
+  cv::Point br = pts_l[pts_l.size() - 1];
+  cv::Point bl = pts_l[pts_l.size() - h_edges];
+
+  std::vector<cv::Point> poly_pts;
+  poly_pts.push_back(tl);
+  poly_pts.push_back(tr);
+  poly_pts.push_back(br);
+  poly_pts.push_back(bl);
+
+  cv::Mat mask = cv::Mat::zeros(coverage_indicator.size(), CV_8UC1);
+  cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{poly_pts},
+               cv::Scalar(255/5, 255/5, 255/5));
+
+  coverage_indicator = coverage_indicator + mask;
 }
 
 void applyCoverageIndicatorOverlay(cv::Mat& image,
