@@ -41,13 +41,15 @@ make -j$(nproc)
 
 The calibration process requires a printed checkerboard pattern.
 
-Default configuration expects a **9x6 checkerboard with 24mm squares**. For other configurations, please use the command line options described below.
+The default configuration expects a **[9x6 checkerboard with 24mm squared](https://github.com/opencv/opencv/blob/4.x/doc/pattern.png/)**.
+
+For other custom configurations, please use the command line options described below.
 
 #### Prepare Calibration Target
 
-- Print a checkerboard pattern and attach it on rigid, flat surface.
-- Default: 9 horizontal × 6 vertical inner corners, 24mm square size.
+- Print the checkerboard pattern and attach it on a rigid, flat surface.
 - Ensure the pattern is perfectly flat and well-lit.
+- Avoid reflections or glare on the checkerboard surface.
 
 #### Run Calibration
 
@@ -81,22 +83,26 @@ Usage: ./zed_stereo_calibration [options]
 #### Example Commands
 
 - ZED Stereo Camera using an SVO file:
+
   `./zed_stereo_calibration --svo <full_path_to_svo_file>`
 
 - Virtual Stereo Camera using camera IDs:
+
   `./zed_stereo_calibration --virtual --left_id 0 --right_id 1`
 
 - Virtual Stereo Camera using camera serial numbers and a custom checkerboard (size 12x9 with 30mm squares):
+
   `./zed_stereo_calibration --virtual --left_sn <serial_number> --right_sn <serial_number> --h_edges 12 --v_edges 9 --square_size 30.0`
 
 - Virtual Stereo Camera with **fisheye lenses** using camera serial numbers:
+
   `./zed_stereo_calibration --fisheye --virtual --left_sn <serial_number> --right_sn <serial_number>`
 
-You can easily obtain the serial numbers or the IDs of your connected ZED cameras by running the following command:
-
-```bash
-ZED_Explorer --all
-```
+>:pushpin: **Note**: You can easily obtain the serial numbers or the IDs of your connected ZED cameras by running the following command:
+>
+> ```bash
+> ZED_Explorer --all
+> ```
 
 #### Calibration Process
 
@@ -105,22 +111,30 @@ The calibration process consists of two main phases:
 1. **Data Acquisition**: Move the checkerboard in front of the camera(s) to capture diverse views. The tool provides real-time feedback on the quality of the captured data.
 2. **Calibration Computation**: Once sufficient data is collected, the tool computes the calibration parameters and saves them to two files.
 
-The **Data Acquisition** phase consists of moving the checkerboard in front of the camera(s) to capture diverse views. The tool provides real-time feedback on the quality of the captured data regarding XY coverage, distance variation, and skewness.
+The **Data Acquisition** phase consists of moving the checkerboard in front of the camera(s) to capture diverse views. The tool provides real-time feedback on the quality of the captured data regarding *XY coverage*, *distance variation*, and *skewness*.
+
+When the checkerboard is placed in a position that you want to capture, press the **Spacebar** or the **S** key to capture the images.
+
+- If the checkerboard is detected in both images, and the captured data are different enough from the previously captured images, the data is accepted, and the quality indicators are updated.
+- If the data is not accepted, a message is displayed in the GUI output indicating the reason (e.g., checkerboard not detected, not enough variation, etc.).
 
 In order to collect good calibration data, ensure that:
 
-- The checkerboard covers a wide area of the image frame. "Green" polygons appear on the left image to indicate the covered areas. When one of the 4 zones of the images becomes fully green, the coverage requirement is met for that part of the image.
+- The checkerboard is always fully visible in both left and right images. Corners detected in both images are highlighted with colored visual markers.
+- The checkerboard moves over a wide area of the image frame. "Green" polygons appear on the left image to indicate the covered areas. When one of the 4 zones of the left image becomes fully green, the coverage requirement is met for that part of the image.
 - The checkerboard is moved closer and farther from the camera to ensure depth variation. At least one image covering almost the full left frame is required.
 - The checkerboard is tilted and rotated to provide different angles.
 
-The "Horizontal Coverage", "Vertical Coverage", "Checkerboard sizes", and "Checkerboard skews" percentages indicates the quality of the collected data for each criterion. When all criteria reach 100%, and a minimum number of images is collected, the "Calibrate" process will automatically start.
+The "Horizontal Coverage", "Vertical Coverage", "Checkerboard sizes", and "Checkerboard skews" percentages indicates the quality of the collected data for each criterion. When all criteria reach 100%, a minimum number of images is collected, or a maximum number of images is reached, the "Calibrate" process will automatically start.
 
 You can follow the steps of the calibration process in the terminal output:
 
-1. The left camera is calibrated first, followed by the right camera.
+1. The left camera is calibrated first, followed by the right camera to obtain the intrinsic parameters.
 2. Finally, the stereo calibration is performed to compute the extrinsic parameters between the two cameras.
 
-Good calibration results typically yield a reprojection error below 0.5 pixels. In case one of the reprojection errors is too high, the result of the calibration is not accurate enough, and you should redo the calibration process verifying that the checkerboard is flat and well-lit, the lenses of the cameras are clean, and that the light of the environment is stable and not generating reflections or glare on the checkerboard.
+Good calibration results typically yield a reprojection error below 0.5 pixels for each calibration step.
+
+In case one of the reprojection errors is too high, the result of the calibration is not accurate enough, and you should redo the calibration process verifying that the checkerboard is flat and well-lit, the lenses of the cameras are clean, and that the light of the environment is stable and not generating reflections or glares on the checkerboard.
 
 After a good calibration is complete, two files are generated:
 
@@ -145,44 +159,4 @@ Visualize the rectification of the image on the full
 ```bash
 cd reprojection_viewer/build
 ./ZED_Depth_Repro [options]
-```
-
-## Configuration
-
-### Calibration Parameters
-Edit the following constants in `stereo_calibration/src/main.cpp`:
-
-```cpp
-constexpr int target_w = 9;        // Horizontal inner corners
-constexpr int target_h = 6;        // Vertical inner corners  
-constexpr float square_size = 24.0; // Square size in mm
-```
-
-### Quality Thresholds
-```cpp
-const float min_coverage = 10;      // Coverage percentage
-const float min_rotation = 60;      // Rotation in degrees
-const float min_distance = 200;     // Distance variation in mm
-```
-
-## Advanced Features
-
-### Virtual Stereo Camera Support
-Configure multiple ZED One cameras as a virtual stereo pair:
-
-```cpp
-// In stereo_calibration/src/main.cpp
-if(1){ // Enable virtual stereo
-    const int sn_left = 300000001;   // Serial number of left camera
-    const int sn_right = 300000002;  // Serial number of right camera
-    int sn_stereo = sl::generateVirtualStereoSerialNumber(sn_left, sn_right);
-    init_params.input.setVirtualStereoFromSerialNumbers(sn_left, sn_right, sn_stereo);
-}
-```
-
-### Fisheye Camera Support
-
-For wide-angle or fisheye lenses:
-```bash
-./ZED_Opencv_Calibration --fisheye
 ```
