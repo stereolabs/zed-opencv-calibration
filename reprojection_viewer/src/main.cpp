@@ -216,7 +216,7 @@ int main(int argc, char **argv) {
         init_parameters.input.setFromSVOFile(sl::String(args.svo_path.c_str()));
     } else {
         init_parameters.camera_resolution = RESOLUTION::AUTO; // Set the camera resolution
-        init_parameters.camera_fps = 30; // Set the camera FPS
+        init_parameters.camera_fps = 15; // Set the camera FPS
     }
 
     if (!args.optional_settings_path.empty()) {
@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
     Mat image_rect(res, sl::MAT_TYPE::U8_C4, MEM::CPU);
     auto im_rect_ocv = slMat2cvMat(image_rect);
 
-    const bool fisheye = true; // Set to true if using fisheye camera, false for non-fisheye
+    const bool fisheye = false; // Set to true if using fisheye camera, false for non-fisheye
 
     auto stream = zed.getCUDAStream();
 

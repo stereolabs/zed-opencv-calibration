@@ -55,7 +55,7 @@ const float min_target_area = 0.1f;  // Ignore checkerboards smaller than this
                                      // area (percentage of image area)
 
 // Debug
-bool verbose = true;
+bool verbose = false;
 int sdk_verbose = 0;
 
 // Text colors
