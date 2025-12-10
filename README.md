@@ -39,11 +39,16 @@ make -j$(nproc)
 
 ### Stereo Calibration
 
-The calibration process requires a printed checkerboard pattern.
+The **Stereo Calibration Tool** enables precise calibration of ZED stereo cameras and virtual stereo rigs (e.g., two ZED X One cameras) using a checkerboard pattern. This process computes intrinsic camera parameters (focal length, principal point, distortion coefficients) and extrinsic parameters (relative position and orientation between cameras).
 
-The default configuration expects a **[9x6 checkerboard with 25.4 mm squared](https://github.com/opencv/opencv/blob/4.x/doc/pattern.png/)**.
+#### Checkerboard Pattern Requirements
 
-For other custom checkerboard configurations, please use the command line options described below.
+The calibration requires a printed checkerboard pattern with:
+
+- **Default configuration**: [9x6 checkerboard with 25.4 mm squares](https://github.com/opencv/opencv/blob/4.x/doc/pattern.png/)
+- **Custom patterns**: Supported via command-line options (see below)
+
+**Important**: The pattern dimensions refer to the number of **inner corners** (where black and white squares meet), not the number of squares.
 
 #### Prepare the Calibration Target
 
@@ -154,17 +159,32 @@ You can use these files in your ZED SDK applications:
 
 ### Stereo Reprojection Viewer
 
-Visualize the effects of the rectification on the unrectified images in real-time.
+The **Stereo Reprojection Viewer** is a diagnostic tool that visualizes the effects of camera calibration in real-time. It helps validate calibration quality by displaying how 3D point cloud data reprojects onto unrectified images.
 
-The tool open the Stereo Camera and loads the calibration parameters from a specified calibration file or from the default location.
-To evaluate the quality of the calibration, the toll displays the 3D point cloud, the rectified left image, and the unrectified left image with an overlay displaying the reprojections of the 3D points onto the unrectified image.
+The tool opens the stereo camera and loads calibration parameters either from a specified file or from the default ZED SDK calibration location.
 
-This allows you to visually assess how well the calibration parameters correct the distortions and compare the effective field of view between the rectified and unrectified images.
+#### What the Viewer Displays
 
-In case of a virtual stereo camera setup, the projection view allows to evaluate the alignment between the two cameras:
+The application provides three synchronized views:
 
-- A well-centered reprojection zone indicates that the optical axis of the two cameras are well aligned and that there's no significant vertical offset between them
-- Small not covered areas indicate a good match between the two camera lenses and their field of view.
+1. **3D Point Cloud** - The computed depth data in 3D space
+2. **Rectified Left Image** - The corrected, distortion-free left camera image
+3. **Unrectified Left Image with Reprojection Overlay** - The raw left camera image overlaid with reprojected 3D points color-coded by depth (blue for close, red for far)
+
+#### Evaluating Calibration Quality
+
+By comparing the rectified and unrectified views with the reprojection overlay, you can:
+
+- **Assess distortion correction**: Verify how well the calibration parameters remove lens distortions
+- **Compare field of view**: Evaluate differences in effective FOV between rectified and unrectified images
+- **Validate depth accuracy**: Ensure 3D points align correctly with their corresponding image features
+
+#### Virtual Stereo Camera Alignment
+
+For virtual stereo camera setups (e.g., two ZED X One cameras), the reprojection view provides critical alignment feedback:
+
+- **Centered reprojection zone**: Indicates proper optical axis alignment between the two cameras with minimal vertical offset
+- **Minimal uncovered areas**: Suggests good lens matching and overlapping fields of view between cameras
 
 #### Run the Reprojection Viewer
 
