@@ -25,11 +25,15 @@ This project provides two main applications for working with ZED cameras:
 
 ## Installation and building
 
+### Build Instructions
+
+Open a terminal on your Linux system and execute the following commands:
+
 ```bash
 git clone https://github.com/stereolabs/zed-opencv-calibration.git
 cd zed-opencv-calibration
 
-# Build stereo calibration tool and reprojection viewer
+# Build the stereo calibration tool and the reprojection viewer
 mkdir build && cd build
 cmake ..
 make -j$(nproc)
