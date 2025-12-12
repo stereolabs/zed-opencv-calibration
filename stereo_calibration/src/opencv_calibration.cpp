@@ -18,11 +18,13 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
   if (img_count==-1) {
     std::cout << " * Counting images in the folder..." << std::endl;
     int actual_img_count = 0;
-    for (int i = 0; i < img_count; i++) {
-      std::string left_path = folder + "image_left_" + std::to_string(i) + ".png";
-      std::string right_path = folder + "image_right_" + std::to_string(i) + ".png";
+    while(1) {
+      std::string left_path = folder + "image_left_" + std::to_string(actual_img_count) + ".png";
+      std::string right_path = folder + "image_right_" + std::to_string(actual_img_count) + ".png";
       if (std::filesystem::exists(left_path) && std::filesystem::exists(right_path)) {
         actual_img_count++;
+      }else {
+        break;
       }
     }
     img_count = actual_img_count;
