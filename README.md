@@ -69,7 +69,7 @@ cd build/stereo_calibration/
 ./zed_stereo_calibration
 ```
 
-this command tries to open the first connected ZED camera for live calibration using the default checkerboard settings.
+This command tries to open the first connected ZED camera for live calibration using the default checkerboard settings.
 
 You can also specify different options to calibrate virtual stereo cameras or use custom checkerboard parameters:
 
@@ -135,13 +135,13 @@ In order to collect good calibration data, ensure that:
 - The checkerboard is moved closer and farther from the camera to ensure depth variation. At least one image covering almost the full left frame is required.
 - The checkerboard is tilted and rotated to provide different angles.
 
-The "X" coverage, "Y" coverage, "Size", and "Skew" percentages indicates the quality of the collected data for each criterion. 
+The "X" coverage, "Y" coverage, "Size", and "Skew" percentages indicate the quality of the collected data for each criterion.
 
-If you cannot reach 100% for one of the metrics, be sure that it's higher as possible.
+If you cannot reach 100% for one of the metrics, be sure that it's as high as possible.
 
-- To rise the "X" and "Y" metrics move the checkerboard to the edges and corners of the left image while keeping it fully visible in the right rame.
-- To rise the "Size" metric, move the checkerboard closer and farther from the camera. You must acquire at least one image where the checkerboard is covering almost the full left image and one where it's smaller and corners are barely detected.
-- To rise the "Skew" metric, tilt and rotate the checkerboard in different angles. It's easier to obtain different skew values if the checkerboard is closer to the camera and rotated around the vertical and horizontal axes simultaneously.
+- To raise the "X" and "Y" metrics move the checkerboard to the edges and corners of the left image while keeping it fully visible in the right frame.
+- To raise the "Size" metric, move the checkerboard closer and farther from the camera. You must acquire at least one image where the checkerboard is covering almost the full left image and one where it's smaller and corners are barely detected.
+- To raise the "Skew" metric, tilt and rotate the checkerboard in different angles. It's easier to obtain different skew values if the checkerboard is closer to the camera and rotated around the vertical and horizontal axes simultaneously.
 
 The "Calibrate" process will automatically start when either of these conditions is met:
 
@@ -224,7 +224,7 @@ You can also specify different options to use virtual stereo cameras, fisheye le
 Usage: ./zed_reprojection_viewer [options]
   --svo <file>          Path to the SVO file.
   --calib_path <file>   Path to the optional calibration file
-  --ocv <file>          Path to an optional OpenCV
+  --ocv <file>          Path to an optional OpenCV calibration file
   --fisheye             Use fisheye lens model.
   --virtual             Use ZED X One cameras as a virtual stereo pair.
   --left_id <id>        Id of the left camera if using virtual stereo.
@@ -247,3 +247,4 @@ Usage: ./zed_reprojection_viewer [options]
 - Virtual Stereo Camera with fisheye lenses using camera serial numbers:
 
   `./zed_reprojection_viewer --fisheye --virtual --left_sn <serial_number> --right_sn <serial_number>`
+
