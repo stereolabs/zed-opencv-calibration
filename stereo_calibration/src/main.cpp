@@ -26,30 +26,37 @@ std::map<std::string, std::string> parseArguments(int argc, char* argv[]);
 
 // Coverage indicator fill helpers
 void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
-                                cv::Mat& pos_indicator, float norm_x,
-                                float norm_y, float norm_size);
+                                cv::Mat& pos_indicator,
+                                cv::Mat& limits_indicator, float norm_x,
+                                float norm_y, float norm_size, float min_x,
+                                float max_x, float min_y, float max_y, bool draw_rect);
 void addNewCheckerboardPoly(cv::Mat& coverage_indicator,
                             const std::vector<cv::Point2f>& pts_l);
 void applyCoverageIndicatorOverlay(cv::Mat& image,
-                                   const cv::Mat& coverage_indicator);
+                                   const cv::Mat& coverage_indicator,
+                                   const cv::Mat& limits_indicator);
 void applyPosIndicatorOverlay(cv::Mat& image, const cv::Mat& pos_indicator);
 
 /// Rendering
-constexpr int text_area_height = 210;
+constexpr int text_area_height = 380;   // Height of the area below the images
 const cv::Size display_size(720, 404);  // Size of the rendered images
 
 /// Calibration condition
 const float max_repr_error = 0.5;  // in pixels
 const int min_samples = 25;
 const int max_samples = 35;
-const float min_x_coverage =
+const float min_avg_x_coverage =
     0.65f;  // Checkerboard X position covering percentage of the image width
-const float min_y_coverage =
+const float min_avg_y_coverage =
     0.65f;  // Checkerboard Y position covering percentage of the image height
 const float min_area_range =
     0.4f;  // Checkerboard area range size [min_area-max_area]
 const float min_skew_range =
     0.375f;  // Checkerboard skew ange size [min_skew-max_skew]
+const float min_b_x_coverage = 0.8f;  // Checkerboard X position close to border
+                                      // covering percentage of the image width
+const float min_b_y_coverage = 0.8f;  // Checkerboard Y position close to border
+                                      // covering percentage of the image height
 
 const float min_target_area = 0.1f;  // Ignore checkerboards smaller than this
                                      // area (percentage of image area)
@@ -57,10 +64,6 @@ const float min_target_area = 0.1f;  // Ignore checkerboards smaller than this
 // Debug
 bool verbose = false;
 int sdk_verbose = 0;
-
-// Text colors
-const cv::Scalar info_color = cv::Scalar(50, 205, 50);
-const cv::Scalar warn_color = cv::Scalar(0, 128, 255);
 
 // SIDE-by-SIDE or TOP-BOTTOM image stacking for display
 const bool image_stack_horizontal =
@@ -178,8 +181,8 @@ struct Args {
 int main(int argc, char* argv[]) {
   // Setup the calibration checker
   const DetectedBoardParams idealParams = {
-      cv::Point2f(min_x_coverage, min_y_coverage), min_area_range,
-      min_skew_range};
+      cv::Point2f(min_avg_x_coverage, min_avg_y_coverage), min_area_range,
+      min_skew_range, min_b_x_coverage, min_b_y_coverage};
   CalibrationChecker checker(cv::Size(h_edges, v_edges), square_size,
                              min_samples, max_samples, min_target_area,
                              idealParams, verbose);
@@ -220,8 +223,10 @@ int main(int argc, char* argv[]) {
   if (!args.use_stored_images) {
     // Coverage scores
     float size_score = 0.0f, skew_score = 0.0f, pos_score_x = 0.0f,
-          pos_score_y = 0.0f;
-    
+          pos_score_y = 0.0f, min_bx = 0.0f, max_bx = 0.0f, min_by = 0.0f,
+          max_by = 0.0f, min_size = 0.0f, max_size = 0.0f, min_skew = 0.0f,
+          max_skew = 0.0f;
+
     // ZED Camera initialization
     sl::Camera zed_camera;
     sl::InitParameters init_params;
@@ -333,15 +338,16 @@ int main(int argc, char* argv[]) {
     zed_info = zed_camera.getCameraInformation();
 
     // Print camera information
-    std::cout << " * Camera Model: "
-              << sl::toString(zed_info.camera_model) << std::endl;
-    std::cout << " * Camera Serial Number: " << zed_info.serial_number << std::endl;
+    std::cout << " * Camera Model: " << sl::toString(zed_info.camera_model)
+              << std::endl;
+    std::cout << " * Camera Serial Number: " << zed_info.serial_number
+              << std::endl;
     std::cout << " * Camera Resolution: "
               << zed_info.camera_configuration.resolution.width << " x "
               << zed_info.camera_configuration.resolution.height << std::endl;
 
     // change can_use_calib_prior if you dont want to use the calibration file
-    can_use_calib_prior =  status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
+    can_use_calib_prior = status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
 
     std::cout << " * Using prior calibration: "
               << (can_use_calib_prior ? "Yes" : "No") << std::endl;
@@ -363,6 +369,9 @@ int main(int argc, char* argv[]) {
         cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
 
     cv::Mat pos_indicator =
+        cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
+
+    cv::Mat limits_indicator =
         cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
 
     cv::Mat rgb_d, rgb2_d, rgb_d_fill, rgb2_d_fill, display, rendering_image;
@@ -391,7 +400,7 @@ int main(int argc, char* argv[]) {
       return 1;
     }
 
-    char key = ' ';    
+    char key = ' ';
     // bool coverage_mode = false;
     bool missing_target_on_last_pics = false;
     bool low_target_variability_on_last_pics = false;
@@ -408,6 +417,9 @@ int main(int argc, char* argv[]) {
         return EXIT_SUCCESS;
       }
 
+      const cv::Scalar info_color = cv::Scalar(50, 210, 50);
+      const cv::Scalar warn_color = cv::Scalar(0, 50, 250);
+
       if (zed_camera.grab() == sl::ERROR_CODE::SUCCESS) {
         zed_camera.retrieveImage(zed_imageL, sl::VIEW::LEFT_UNRECTIFIED);
         zed_camera.retrieveImage(zed_imageR, sl::VIEW::RIGHT_UNRECTIFIED);
@@ -416,7 +428,8 @@ int main(int argc, char* argv[]) {
         cv::resize(rgb_r, rgb2_d, display_size);
         cv::resize(rgb_l, rgb_d_fill, display_size);
 
-        applyCoverageIndicatorOverlay(rgb_d_fill, coverage_indicator);
+        applyCoverageIndicatorOverlay(rgb_d_fill, coverage_indicator,
+                                      limits_indicator);
         applyPosIndicatorOverlay(rgb_d_fill, pos_indicator);
 
         std::vector<cv::Point2f> pts_l, pts_r;
@@ -457,69 +470,33 @@ int main(int argc, char* argv[]) {
         } else {
           if (missing_target_on_last_pics ||
               low_target_variability_on_last_pics) {
-            cv::putText(rendering_image, "Frames not stored for calibration.",
-                        cv::Point(display.size[1] / 2, display.size[0] + 80),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
+            cv::putText(
+                rendering_image, "Frames not saved for calibration.",
+                cv::Point(display.size[1] / 2 - 20, display.size[0] + 285),
+                cv::FONT_HERSHEY_SIMPLEX, 0.75, warn_color, 2);
           }
 
           if (missing_target_on_last_pics) {
-            cv::putText(rendering_image,
-                        " * Missing target on one of the cameras.",
-                        cv::Point(display.size[1] / 2, display.size[0] + 110),
-                        cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
+            cv::putText(
+                rendering_image, " * Missing target on one of the cameras.",
+                cv::Point(display.size[1] / 2 - 20, display.size[0] + 315),
+                cv::FONT_HERSHEY_SIMPLEX, 0.75, warn_color, 2);
           }
 
           if (low_target_variability_on_last_pics) {
             cv::putText(
                 rendering_image,
                 " * Target too similar to a previous acquisition or too small.",
-                cv::Point(display.size[1] / 2, display.size[0] + 140),
-                cv::FONT_HERSHEY_SIMPLEX, 0.7, warn_color, 2);
+                cv::Point(display.size[1] / 2 - 20, display.size[0] + 345),
+                cv::FONT_HERSHEY_SIMPLEX, 0.75, warn_color, 2);
           }
 
           cv::putText(
               rendering_image,
-              "Press 's' or the spacebar to store the current frames when "
+              "Press 's' or the spacebar to save the current frames when "
               "the target is visible in both images.",
               cv::Point(10, display.size[0] + 25), cv::FONT_HERSHEY_SIMPLEX,
               0.7, info_color, 1);
-
-          std::stringstream ss_status;
-          ss_status << " * Horizontal coverage: " << std::fixed
-                    << std::setprecision(2) << pos_score_x * 100.0f << "%";
-          cv::putText(rendering_image, ss_status.str(),
-                      cv::Point(10, display.size[0] + 55),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                      (pos_score_x > 1.0f ? info_color : warn_color), 1);
-          ss_status.str("");
-          ss_status << " * Vertical coverage: " << std::fixed
-                    << std::setprecision(2) << pos_score_y * 100.0f << "%";
-          cv::putText(rendering_image, ss_status.str(),
-                      cv::Point(10, display.size[0] + 85),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                      (pos_score_y > 1.0f ? info_color : warn_color), 1);
-          ss_status.str("");
-          ss_status << " * Checkerboard sizes: " << std::fixed
-                    << std::setprecision(2) << size_score * 100.0f << "%";
-          cv::putText(rendering_image, ss_status.str(),
-                      cv::Point(10, display.size[0] + 115),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                      (size_score > 1.0f ? info_color : warn_color), 1);
-          ss_status.str("");
-          ss_status << " * Checkerboard skews: " << std::fixed
-                    << std::setprecision(2) << skew_score * 100.0f << "%";
-          cv::putText(rendering_image, ss_status.str(),
-                      cv::Point(10, display.size[0] + 145),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                      (skew_score > 1.0f ? info_color : warn_color), 1);
-
-          std::stringstream ss_img_count;
-          ss_img_count << " * Sample saved: " << std::max(image_count,0) << " [min. "
-                       << min_samples << "]";
-          cv::putText(rendering_image, ss_img_count.str(),
-                      cv::Point(10, display.size[0] + 175),
-                      cv::FONT_HERSHEY_SIMPLEX, 0.7,
-                      (image_count > min_samples ? info_color : warn_color), 1);
 
           cv::putText(
               rendering_image,
@@ -527,8 +504,123 @@ int main(int argc, char* argv[]) {
               "and backward, and rotate it to improve "
               "coverage and variability scores. Framerate can be low if "
               "no target is detected.",
-              cv::Point(10, display.size[0] + 200), cv::FONT_HERSHEY_SIMPLEX,
+              cv::Point(10, display.size[0] + 45), cv::FONT_HERSHEY_SIMPLEX,
               0.5, warn_color, 1);
+
+          // ----> Draw Status Info <---- //
+          std::stringstream ss_status;
+          int v_pos = display.size[0] + 80;
+          int v_space = 33;
+          int h_pos = 10;
+          int h_space = 180;
+          double font_scale = 0.7;
+
+          auto draw_text_row = [rendering_image, h_pos, h_space, font_scale,
+                                info_color,
+                                warn_color](const std::string& label, int v_pos,
+                                            int min_val, int max_val, int req_i,
+                                            float req_f, float score) {
+            // Label
+            cv::putText(rendering_image, label, cv::Point(h_pos, v_pos),
+                        cv::FONT_HERSHEY_SIMPLEX, font_scale,
+                        (score >= 1.0f ? info_color : warn_color), 1);
+
+            // Min Val
+            cv::putText(rendering_image, std::to_string(min_val),
+                        cv::Point(h_pos + h_space, v_pos),
+                        cv::FONT_HERSHEY_SIMPLEX, font_scale,
+                        (score >= 1.0f ? info_color : warn_color), 1);
+
+            // Max Val
+            cv::putText(rendering_image, std::to_string(max_val),
+                        cv::Point(h_pos + 2 * h_space, v_pos),
+                        cv::FONT_HERSHEY_SIMPLEX, font_scale,
+                        (score >= 1.0f ? info_color : warn_color), 1);
+
+            // Coverage
+            cv::putText(rendering_image, std::to_string(max_val - min_val),
+                        cv::Point(h_pos + 3 * h_space, v_pos),
+                        cv::FONT_HERSHEY_SIMPLEX, font_scale,
+                        (score >= 1.0f ? info_color : warn_color), 1);
+
+            // Required
+            cv::putText(rendering_image, std::to_string(req_i),
+                        cv::Point(h_pos + 4 * h_space, v_pos),
+                        cv::FONT_HERSHEY_SIMPLEX, font_scale,
+                        (score >= 1.0f ? info_color : warn_color), 1);
+
+            // Score
+            std::stringstream ss;
+            ss << std::fixed << std::setprecision(2) << score * 100.0f << "%";
+            cv::putText(rendering_image, ss.str(),
+                        cv::Point(h_pos + 5 * h_space, v_pos),
+                        cv::FONT_HERSHEY_SIMPLEX, font_scale,
+                        (score >= 1.0f ? info_color : warn_color), 1);
+          };
+
+          ss_status << "Sample Collection Status";
+          cv::putText(rendering_image, ss_status.str(), cv::Point(10, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+
+          ss_status.str("");
+          v_pos += v_space;
+          cv::putText(rendering_image, "METRIC", cv::Point(h_pos, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+          cv::putText(rendering_image, "MIN_VAL",
+                      cv::Point(h_pos + h_space, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+          cv::putText(rendering_image, "MAX_VAL",
+                      cv::Point(h_pos + 2 * h_space, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+          cv::putText(rendering_image, "COVERAGE",
+                      cv::Point(h_pos + 3 * h_space, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+          cv::putText(rendering_image, "REQUIRED",
+                      cv::Point(h_pos + 4 * h_space, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+          cv::putText(rendering_image, "SCORE",
+                      cv::Point(h_pos + 5 * h_space, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, font_scale, info_color, 2);
+
+          v_pos += v_space;
+          draw_text_row(
+              "X [px]", v_pos,
+              static_cast<int>(min_bx * camera_resolution.width),
+              static_cast<int>(max_bx * camera_resolution.width),
+              static_cast<int>(min_b_x_coverage * camera_resolution.width),
+              min_b_x_coverage, pos_score_x);
+
+          v_pos += v_space;
+          draw_text_row(
+              "Y [px]", v_pos,
+              static_cast<int>(min_by * camera_resolution.height),
+              static_cast<int>(max_by * camera_resolution.height),
+              static_cast<int>(min_b_y_coverage * camera_resolution.height),
+              min_b_y_coverage, pos_score_y);
+          v_pos += v_space;
+          draw_text_row(
+              "Size [sq. px]", v_pos,
+              static_cast<int>(min_size * camera_resolution.height *
+                               camera_resolution.width),
+              static_cast<int>(max_size * camera_resolution.height *
+                               camera_resolution.width),
+              static_cast<int>(min_area_range * camera_resolution.height *
+                               camera_resolution.width),
+              min_area_range, size_score);
+          v_pos += v_space;
+          draw_text_row("Skew [deg]", v_pos, static_cast<int>(min_skew * 90.0f),
+                        static_cast<int>(max_skew * 90.0f),
+                        static_cast<int>(min_skew_range * 90.0f),
+                        min_skew_range * 90.0f, skew_score);
+
+          std::stringstream ss_img_count;
+          v_pos += v_space;
+          ss_img_count << "* Sample saved: " << std::max(image_count, 0)
+                       << " [min. " << min_samples << ","
+                       << " max. " << max_samples << "]";
+          cv::putText(rendering_image, ss_img_count.str(), cv::Point(10, v_pos),
+                      cv::FONT_HERSHEY_SIMPLEX, 0.7,
+                      (image_count > min_samples ? info_color : warn_color), 1);
         }
 
         cv::imshow(window_name, rendering_image);
@@ -562,17 +654,26 @@ int main(int argc, char* argv[]) {
                         << checker.getValidSampleCount() << std::endl;
 
               // saves the images
+              if (image_count<0) {
+                image_count = 0;
+              }
               cv::imwrite(image_folder + "image_left_" +
-                              std::to_string(image_count) + ".png",
-                          rgb_l);
+                                std::to_string(image_count) + ".png",
+                            rgb_l);
               cv::imwrite(image_folder + "image_right_" +
                               std::to_string(image_count) + ".png",
                           rgb_r);
-              std::cout << " * Images saved" << std::endl;
+              std::cout << " * Images saved: " << image_folder + "image_left_" +
+                                std::to_string(image_count) + ".png and "
+                        << image_folder + "image_right_" +
+                               std::to_string(image_count) + ".png"
+                        << std::endl;
               image_count++;
 
               if (checker.evaluateSampleCollectionStatus(
-                      size_score, skew_score, pos_score_x, pos_score_y)) {
+                      size_score, skew_score, pos_score_x, pos_score_y,
+                      min_size, max_size, min_skew, max_skew, min_bx, max_bx,
+                      min_by, max_by)) {
                 std::cout << ">>> Sample collection status: COMPLETE <<<"
                           << std::endl
                           << std::endl;
@@ -580,11 +681,12 @@ int main(int argc, char* argv[]) {
               }
 
               // Add the new checkerboard position to the coverage indicator
-              float norm_x = checker.getLastDetectedBoardParams().pos.x;
-              float norm_y = checker.getLastDetectedBoardParams().pos.y;
+              float norm_x = checker.getLastDetectedBoardParams().avg_pos.x;
+              float norm_y = checker.getLastDetectedBoardParams().avg_pos.y;
               float norm_size = checker.getLastDetectedBoardParams().size;
-              addNewCheckerboardPosition( coverage_indicator, pos_indicator,
-                                          norm_x, norm_y, norm_size);
+              addNewCheckerboardPosition(
+                  coverage_indicator, pos_indicator, limits_indicator, norm_x,
+                  norm_y, norm_size, min_bx, max_bx, min_by, max_by, (image_count >= 2));
               addNewCheckerboardPoly(coverage_indicator, scaled_pts_l);
             } else {
               std::cout << " ! Sample detected but not valid. Please try again "
@@ -620,13 +722,56 @@ static int top_right_count = 0;
 static int bottom_left_count = 0;
 static int bottom_right_count = 0;
 
-void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indicator, float norm_x,
-                                float norm_y, float norm_size) {
+void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
+                                cv::Mat& pos_indicator,
+                                cv::Mat& limits_indicator, float norm_x,
+                                float norm_y, float norm_size, float min_x,
+                                float max_x, float min_y, float max_y,
+                                bool draw_rect) {
+  // Checkerbaord position
   int x = static_cast<int>(norm_x * pos_indicator.cols);
   int y = static_cast<int>(norm_y * pos_indicator.rows);
-  int size = static_cast<int>(norm_size * 20.0f);
+  int size = static_cast<int>(norm_size * 30.0f);
   cv::circle(pos_indicator, cv::Point(x, y), size, cv::Scalar(255, 255, 255),
              -1);
+
+  int min_x_px = static_cast<int>(min_x * pos_indicator.cols);
+  int max_x_px = static_cast<int>(max_x * pos_indicator.cols);
+  int min_y_px = static_cast<int>(min_y * pos_indicator.rows);
+  int max_y_px = static_cast<int>(max_y * pos_indicator.rows);
+
+  
+  limits_indicator.setTo(cv::Scalar(0, 0, 0));
+
+  if (draw_rect) {
+    int col_val = 50;
+    cv::rectangle(limits_indicator, cv::Point(0, 0),
+                  cv::Point(min_x_px, limits_indicator.rows - 1),
+                  cv::Scalar(col_val, col_val, col_val), -1);
+    cv::rectangle(limits_indicator, cv::Point(0, 0),
+                  cv::Point(limits_indicator.cols - 1, min_y_px),
+                  cv::Scalar(col_val, col_val, col_val), -1);
+    cv::rectangle(
+        limits_indicator, cv::Point(0, max_y_px),
+        cv::Point(limits_indicator.cols - 1, limits_indicator.rows - 1),
+        cv::Scalar(col_val, col_val, col_val), -1);
+    cv::rectangle(
+        limits_indicator, cv::Point(max_x_px, 0),
+        cv::Point(limits_indicator.cols - 1, limits_indicator.rows - 1),
+        cv::Scalar(col_val, col_val, col_val), -1);
+  }
+  cv::line(limits_indicator, cv::Point(min_x * limits_indicator.cols, 0),
+           cv::Point(min_x * limits_indicator.cols, limits_indicator.rows - 1),
+           cv::Scalar(255, 255, 255), 2);
+  cv::line(limits_indicator, cv::Point(max_x * limits_indicator.cols, 0),
+           cv::Point(max_x * limits_indicator.cols, limits_indicator.rows - 1),
+           cv::Scalar(255, 255, 255), 2);
+  cv::line(limits_indicator, cv::Point(0, min_y * limits_indicator.rows),
+           cv::Point(limits_indicator.cols - 1, min_y * limits_indicator.rows),
+           cv::Scalar(255, 255, 255), 2);
+  cv::line(limits_indicator, cv::Point(0, max_y * limits_indicator.rows),
+           cv::Point(limits_indicator.cols - 1, max_y * limits_indicator.rows),
+           cv::Scalar(255, 255, 255), 2);
 
   if (norm_x < 0.5f && norm_y < 0.5f) {
     top_left_count++;
@@ -667,7 +812,6 @@ void addNewCheckerboardPosition(cv::Mat& coverage_indicator, cv::Mat& pos_indica
 
 void addNewCheckerboardPoly(cv::Mat& coverage_indicator,
                             const std::vector<cv::Point2f>& pts_l) {
-
   cv::Point tl = pts_l[0];
   cv::Point tr = pts_l[h_edges - 1];
   cv::Point br = pts_l[pts_l.size() - 1];
@@ -681,17 +825,20 @@ void addNewCheckerboardPoly(cv::Mat& coverage_indicator,
 
   cv::Mat mask = cv::Mat::zeros(coverage_indicator.size(), CV_8UC1);
   cv::fillPoly(mask, std::vector<std::vector<cv::Point>>{poly_pts},
-               cv::Scalar(255/5, 255/5, 255/5));
+               cv::Scalar(255 / 5, 255 / 5, 255 / 5));
 
   coverage_indicator = coverage_indicator + mask;
 }
 
 void applyCoverageIndicatorOverlay(cv::Mat& image,
-                                   const cv::Mat& coverage_indicator) {
+                                   const cv::Mat& coverage_indicator,
+                                   const cv::Mat& limits_indicator) {
   std::vector<cv::Mat> channels;
   cv::split(image, channels);
   channels[0] = channels[0] - coverage_indicator;
   channels[2] = channels[2] - coverage_indicator;
+  channels[0] = channels[0] - limits_indicator;
+  channels[1] = channels[1] - limits_indicator;
   cv::merge(channels, image);
 }
 

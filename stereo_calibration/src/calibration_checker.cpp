@@ -43,8 +43,8 @@ bool CalibrationChecker::testSample(const std::vector<cv::Point2f>& corners,
     return false;  // Invalid parameters
   }
 
-  std::cout << std::setprecision(3) << " * New Sample: Pos(" << params.pos.x
-            << ", " << params.pos.y << "), Size: " << params.size
+  std::cout << std::setprecision(3) << " * New Sample: Pos(" << params.avg_pos.x
+            << ", " << params.avg_pos.y << "), Size: " << params.size
             << ", Skew: " << params.skew << std::endl;
 
   if (isGoodSample(params)) {
@@ -168,8 +168,6 @@ DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
     return params;
   }
 
-  //float border = std::sqrt(area);
-
   // For X and Y, we "shrink" the image all around by approx.half the board
   // size. Otherwise large boards are penalized because you can't get much X/Y
   // variation.
@@ -182,14 +180,44 @@ DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
   avg_x /= static_cast<float>(corners.size());
   avg_y /= static_cast<float>(corners.size());
 
-  //float p_x = std::min(1.0f, std::max(0.0f, (avg_x - border / 2.0f) / (image_size.width - border)));
-  //float p_y = std::min(1.0f, std::max(0.0f, (avg_y - border / 2.0f) / (image_size.height - border)));
   float p_x = std::min(1.0f, std::max(0.0f, avg_x / image_size.width));
   float p_y = std::min(1.0f, std::max(0.0f, avg_y / image_size.height));
 
-  params.pos = cv::Point2f(p_x, p_y);
+  // Calculate the coordinates closer to the border
+  float min_x = image_size.width, max_x = 0.0f, min_y = image_size.height, max_y = 0.0f;
+  for (const auto& corner : outside_corners) {
+    if (corner.x < min_x) {
+      min_x = corner.x;
+    }
+    if (corner.x > max_x) {
+      max_x = corner.x;
+    }
+    if (corner.y < min_y) {
+      min_y = corner.y;
+    }
+    if (corner.y > max_y) {
+      max_y = corner.y;
+    }
+  }
+
+  float b_x, b_y;
+
+  if (p_x < 0.5f) {
+    b_x = min_x / image_size.width;
+  } else {
+    b_x = max_x / image_size.width;
+  }
+  if (p_y < 0.5f) {
+    b_y = min_y / image_size.height;
+  } else {
+    b_y = max_y / image_size.height;
+  }
+
+  params.avg_pos = cv::Point2f(p_x, p_y);
   params.size = std::sqrt(area / (image_size.width * image_size.height));
   params.skew = skew;
+  params.b_x = b_x;
+  params.b_y = b_y;
 
   return params;
 }
@@ -203,10 +231,9 @@ bool CalibrationChecker::isGoodSample(const DetectedBoardParams& params) {
   // https://github.com/ros-perception/image_pipeline/blob/rolling/camera_calibration/src/camera_calibration/calibrator.py#L485-L507
   auto param_distance = [](const DetectedBoardParams& p1,
                            const DetectedBoardParams& p2) -> float {
-    return std::abs(p1.size - p2.size) 
-            + std::abs(p1.skew - p2.skew)
-            + std::abs(p1.pos.x - p2.pos.x)
-            + std::abs(p1.pos.y - p2.pos.y);
+    return std::abs(p1.size - p2.size) + std::abs(p1.skew - p2.skew) +
+           std::abs(p1.avg_pos.x - p2.avg_pos.x) +
+           std::abs(p1.avg_pos.y - p2.avg_pos.y);
   };
 
   int idx = 0;
@@ -221,110 +248,66 @@ bool CalibrationChecker::isGoodSample(const DetectedBoardParams& params) {
   }
 
   return true;
-
-  // // New similarity check:
-  // auto is_different = [this](const DetectedBoardParams& p1,
-  //                            const DetectedBoardParams& p2) -> bool {
-  //   // Check that at least one parameter differs by at least 10% from all the
-  //   // stored samples
-  //   constexpr float epsilon = 1e-6f;
-  //   float pos_x_diff = std::abs(p1.pos.x - p2.pos.x) / std::max(std::max(p1.pos.x, p2.pos.x), epsilon);
-  //   float pos_y_diff = std::abs(p1.pos.y - p2.pos.y) / std::max(std::max(p1.pos.y, p2.pos.y), epsilon);
-  //   float size_diff = std::abs(p1.size - p2.size) / std::max(std::max(p1.size, p2.size), epsilon);
-  //   float skew_diff = std::abs(p1.skew - p2.skew) / std::max(std::max(p1.skew, p2.skew), epsilon);
-
-  //   const float diff_thresh = 0.1f;  // 10% difference threshold
-
-  //   if (verbose_) {
-  //     std::cout << "[DEBUG][isGoodSample] Comparing: " << std::endl
-  //               << std::setprecision(3) 
-  //               << " * Pos(" << p1.pos.x << ", "<< p1.pos.y << "), Size: " << p1.size << ", Skew: " << p1.skew << std::endl
-  //               << " * Pos(" << p2.pos.x << ", "<< p2.pos.y << "), Size: " << p2.size << ", Skew: " << p2.skew << std::endl;
-  //     std::cout << std::setprecision(3)
-  //               << " * dPosX: " << pos_x_diff * 100.0f << "%, " << std::endl
-  //               << " * dPosY: " << pos_y_diff * 100.0f << "%, " << std::endl
-  //               << " * dSize: " << size_diff * 100.0f << "%, " << std::endl
-  //               << " * dSkew: " << skew_diff * 100.0f << "%" << std::endl;
-  //   }
-
-  //   if (size_diff > diff_thresh || skew_diff > diff_thresh ||
-  //       pos_x_diff > diff_thresh || pos_y_diff > diff_thresh) {
-  //     if (verbose_) {
-  //       std::cout << " => Different enough" << std::endl;
-  //     }
-  //     return true;  // At least one parameter is sufficiently different
-  //   }
-
-  //   if (verbose_) {
-  //     std::cout << " => Too similar" << std::endl;
-  //   }
-
-  //   return false;  // All parameters are too similar
-  // };
-
-  // for (auto& stored_params : paramDb_) {
-  //   // Stop at the first similar sample found
-  //   if (!is_different(params, stored_params)) {
-  //     std::cout << "Rejected: Too similar to an existing sample" << std::endl;
-  //     return false;
-  //   }
-  // }
-
-  // return true;
 }
 
 bool CalibrationChecker::evaluateSampleCollectionStatus(
-    float& size_score, float& skew_score, float& pos_score_x,
-    float& pos_score_y) const {
-  size_score = 0.0f;
-  skew_score = 0.0f;
-  pos_score_x = 0.0f;
-  pos_score_y = 0.0f;
+    float& size_score_, float& skew_score_, float& pos_score_x_,
+    float& pos_score_y_, float& min_size_, float& max_size_, float& min_skew_,
+    float& max_skew_, float& min_b_x_coverage_, float& max_b_x_coverage_,
+    float& min_b_y_coverage_, float& max_b_y_coverage_) const {
+  size_score_ = 0.0f;
+  skew_score_ = 0.0f;
+  pos_score_x_ = 0.0f;
+  pos_score_y_ = 0.0f;
   if (paramDb_.empty()) {
     return false;
   }
 
-  float min_px = 1.0f, max_px = 0.0f;
-  float min_py = 1.0f, max_py = 0.0f;
+  float min_bx = 1.0f, max_bx = 0.0f;
+  float min_by = 1.0f, max_by = 0.0f;
   float min_size = 1.0f, max_size = 0.0f;
   float min_skew = 1.0f, max_skew = 0.0f;
 
   for (const auto& params : paramDb_) {
-    if (params.pos.x < min_px) min_px = params.pos.x;
-    if (params.pos.x > max_px) max_px = params.pos.x;
-    if (params.pos.y < min_py) min_py = params.pos.y;
-    if (params.pos.y > max_py) max_py = params.pos.y;
+    if (params.b_x < min_bx) min_bx = params.b_x;
+    if (params.b_x > max_bx) max_bx = params.b_x;
+    if (params.b_y < min_by) min_by = params.b_y;
+    if (params.b_y > max_by) max_by = params.b_y;
     if (params.size < min_size) min_size = params.size;
     if (params.size > max_size) max_size = params.size;
     if (params.skew < min_skew) min_skew = params.skew;
     if (params.skew > max_skew) max_skew = params.skew;
   }
 
-  // Don't reward small size or skew
-  // min_skew = 0.0f;
-  // min_size = 0.0f;
+  pos_score_x_ = std::min((max_bx - min_bx) / idealParams_.b_x, 1.0f);
+  pos_score_y_ = std::min((max_by - min_by) / idealParams_.b_y, 1.0f);
+  size_score_ = std::min((max_size - min_size) / idealParams_.size, 1.0f);
+  skew_score_ = std::min((max_skew - min_skew) / idealParams_.skew, 1.0f);
+  min_b_x_coverage_ = min_bx;
+  max_b_x_coverage_ = max_bx;
+  min_b_y_coverage_ = min_by;
+  max_b_y_coverage_ = max_by;
+  min_size_ = min_size;
+  max_size_ = max_size;
+  min_skew_ = min_skew;
+  max_skew_ = max_skew;
 
-  pos_score_x = std::min((max_px - min_px) / idealParams_.pos.x, 1.0f);
-  pos_score_y = std::min((max_py - min_py) / idealParams_.pos.y, 1.0f);
-  size_score = std::min((max_size - min_size) / idealParams_.size, 1.0f);
-  skew_score = std::min((max_skew - min_skew) / idealParams_.skew, 1.0f);
-
-  std::cout << "Sample Collection Status:" << std::endl;
-  std::cout << " - PosX status: [" << min_px << " , " << max_px << "] -> "
-            << max_px - min_px << "/" << idealParams_.pos.x << std::endl;
-  std::cout << "  * PosX Score : " << std::setprecision(3) << pos_score_x
+  std::cout << "Sample Collection Status (normalized values):" << std::endl;
+  std::cout << " - PosX status: [" << min_bx << " , " << max_bx << "] -> "
+            << max_bx - min_bx << "/" << idealParams_.b_x << std::endl;
+  std::cout << "  * PosX Score : " << std::setprecision(3) << pos_score_x_
             << std::endl;
-  std::cout << " - PosY status: [" << min_py << " , " << max_py << "] -> "
-            << max_py - min_py << "/" << idealParams_.pos.y << std::endl;
-  std::cout << "  * PosY Score : " << std::setprecision(3) << pos_score_y
+  std::cout << " - PosY status: [" << min_by << " , " << max_by << "] -> "
+            << max_by - min_by << "/" << idealParams_.b_y << std::endl;
+  std::cout << "  * PosY Score : " << std::setprecision(3) << pos_score_y_
             << std::endl;
   std::cout << " - Size status: [" << min_size << " , " << max_size << "] -> "
             << max_size - min_size << "/" << idealParams_.size << std::endl;
-  std::cout << "  * Size Score : " << std::setprecision(3) << size_score
+  std::cout << "  * Size Score : " << std::setprecision(3) << size_score_
             << std::endl;
   std::cout << " - Skew status: [" << min_skew << " , " << max_skew << "] -> "
             << max_skew - min_skew << "/" << idealParams_.skew << std::endl;
-  std::cout << "  * Skew Score : " << std::setprecision(3) << skew_score
+  std::cout << "  * Skew Score : " << std::setprecision(3) << skew_score_
             << std::endl;
 
   if (paramDb_.size() < min_samples_) {
@@ -341,8 +324,8 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
     return true;
   }
 
-  if (size_score >= 1.0f && skew_score >= 1.0f && pos_score_x >= 1.0f &&
-      pos_score_y >= 1.0f) {
+  if (size_score_ >= 1.0f && skew_score_ >= 1.0f && pos_score_x_ >= 1.0f &&
+      pos_score_y_ >= 1.0f) {
     std::cout << "Sample collection complete: All scores are above threshold"
               << std::endl;
     return true;

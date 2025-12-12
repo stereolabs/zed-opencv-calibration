@@ -13,10 +13,12 @@ typedef struct _board {
 } Board;
 
 typedef struct _detected_board_params {
-  cv::Point2f pos = {
+  cv::Point2f avg_pos = {
       -1.0f, -1.0f};   // Normalized position of the checkerboard in the image
   float size = -1.0f;  // Normalized size of the checkerboard
   float skew = -1.0f;  // Normalized skew of the checkerboard
+  float b_x = -1.0f;   // Normalized value of X closed to the border
+  float b_y = -1.0f;   // Normalized value of Y closed to the border
 } DetectedBoardParams;
 
 // Constants
@@ -29,7 +31,9 @@ const DetectedBoardParams DEFAULT_IDEAL_PARAMS = {
         0.65f   // Checkerboard Y position should cover 65% of the image height
         ),
     0.4f,  // Checkerboard size variation should be at least 40%
-    0.6f   // Checkerboard skew variation should be at least 70%
+    0.375f,  // Checkerboard skew variation should be at least 37.5%
+    0.8f, // Checkerboard X position close to border should cover 80% of the image width
+    0.8f  // Checkerboard Y position close to border should cover 80% of the image height
 };         // Ideal parameters for a good sample database
 
 class CalibrationChecker {
@@ -56,7 +60,12 @@ class CalibrationChecker {
   // Calculate the sample collection status according to the stored samples
   bool evaluateSampleCollectionStatus(float& size_score, float& skew_score,
                                       float& pos_score_x,
-                                      float& pos_score_y) const;
+                                      float& pos_score_y, 
+                                      float& min_size, float& max_size,
+                                      float& min_skew, float& max_skew, 
+                                      float& min_b_x_coverage, float& max_b_x_coverage,
+                                      float& min_b_y_coverage, float& max_b_y_coverage
+                                    ) const;
 
   // Retrieve the last detected board parameters
   const DetectedBoardParams& getLastDetectedBoardParams() const;
