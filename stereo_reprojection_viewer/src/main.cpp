@@ -27,6 +27,9 @@
 
 #include "GLViewer.hpp"
 
+// Macros
+#define SHOW_MASK 0
+
 // Using std and sl namespaces
 using namespace std;
 using namespace sl;
@@ -168,6 +171,7 @@ void reproDepth(cv::Mat &pc, cv::Mat &im, cv::Mat &disto,
   cv::imshow("Projected Points", im);
 }
 
+#if SHOW_MASK
 cv::Mat createMaskUsingUndistortPoints(int width, int height,
                                        cv::Mat &camera_matrix,
                                        cv::Mat &dist_coeffs,
@@ -210,7 +214,7 @@ cv::Mat createMaskUsingUndistortPoints(int width, int height,
 
   return mask;
 }
-
+#endif
 struct Args {
   std::string app_name;
   std::string svo_path = "";
@@ -441,7 +445,10 @@ int main(int argc, char **argv) {
   auto disto =
       cvtDisto(camera_config.calibration_parameters_raw.left_cam, fisheye);
 
+#if SHOW_MASK
   auto K_new = cvtCameraParam(camera_config.calibration_parameters.left_cam);
+
+
   auto mask_cv = createMaskUsingUndistortPoints(res.width, res.height, K, disto,
                                                 K_new, fisheye);
 
@@ -452,6 +459,7 @@ int main(int argc, char **argv) {
   sl::Mat mask_sl;
   mask_sl.read("mask.png");
   zed.setRegionOfInterest(mask_sl);
+#endif
 
   // Point cloud viewer
   GLViewer viewer;
@@ -480,6 +488,7 @@ int main(int argc, char **argv) {
       reproDepth(pc_ocv, im_ocv, disto, K, fisheye);
       zed.retrieveImage(image_rect, VIEW::LEFT, MEM::CPU, res);
 
+#if SHOW_MASK
       // Apply mask to rectified image
       cv::Mat im_rect_masked = im_rect_ocv.clone();
       for (int y = 0; y < im_rect_masked.rows; ++y) {
@@ -490,9 +499,10 @@ int main(int argc, char **argv) {
           }
         }
       }
+      cv::imshow("Masked Rectified Image", im_rect_masked);
+#endif
 
       cv::imshow("Rectified Image", im_rect_ocv);
-      cv::imshow("Masked Rectified Image", im_rect_masked);
       cv::waitKey(10);  // Wait for a short time to update the image display
     }
   }
