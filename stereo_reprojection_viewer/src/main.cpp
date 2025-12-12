@@ -34,7 +34,7 @@
 using namespace std;
 using namespace sl;
 
-cv::Mat cvtDisto(sl::CameraParameters &camera_param, bool fisheye) {
+cv::Mat cvtDisto(const sl::CameraParameters &camera_param, bool fisheye) {
   cv::Mat disto;
   if (!fisheye) {
     const int num_disto_coeffs =
@@ -56,7 +56,7 @@ cv::Mat cvtDisto(sl::CameraParameters &camera_param, bool fisheye) {
   return disto;
 }
 
-cv::Mat cvtCameraParam(sl::CameraParameters &camera_param) {
+cv::Mat cvtCameraParam(const sl::CameraParameters &camera_param) {
   // Convert the ZED camera parameters to OpenCV format
   cv::Mat camera_matrix = cv::Mat::zeros(3, 3, CV_64F);
   camera_matrix.at<double>(0, 0) = camera_param.fx;

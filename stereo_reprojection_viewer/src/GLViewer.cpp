@@ -3,7 +3,7 @@
 
 
 
-void print(std::string msg_prefix, sl::ERROR_CODE err_code, std::string msg_suffix) {
+void print(const std::string& msg_prefix, sl::ERROR_CODE err_code, const std::string& msg_suffix) {
     cout <<"[Sample]";
     if (err_code != sl::ERROR_CODE::SUCCESS)
         cout << "[Error] ";
@@ -198,7 +198,7 @@ void GLViewer::update() {
         return;
     }
 
-    if(keyStates_['s'] == KEY_STATE::UP || keyStates_['s'] == KEY_STATE::UP)
+    if(keyStates_['s'] == KEY_STATE::UP || keyStates_['S'] == KEY_STATE::UP)
         currentInstance_->shouldSaveData_ = true;
 
 	// Rotate camera with mouse
