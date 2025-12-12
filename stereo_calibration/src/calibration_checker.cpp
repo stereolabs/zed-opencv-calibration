@@ -9,7 +9,7 @@ constexpr size_t down_left = 3;
 
 CalibrationChecker::CalibrationChecker(cv::Size board_size, float square_size,
                                        size_t min_samples, size_t max_samples,
-                                      float min_target_area,
+                                       float min_target_area,
                                        DetectedBoardParams idealParams,
                                        bool verbose) {
   verbose_ = verbose;
@@ -43,15 +43,18 @@ bool CalibrationChecker::testSample(const std::vector<cv::Point2f>& corners,
     return false;  // Invalid parameters
   }
 
-  std::cout << std::setprecision(3) << " * New Sample: Pos(" << params.avg_pos.x
-            << ", " << params.avg_pos.y << "), Size: " << params.size
-            << ", Skew: " << params.skew << std::endl;
+  if (verbose_) {
+    std::cout << std::setprecision(3) << " * New Sample: Pos("
+              << params.avg_pos.x << ", " << params.avg_pos.y
+              << "), Size: " << params.size << ", Skew: " << params.skew
+              << std::endl;
+  }
 
   if (isGoodSample(params)) {
     // Store the valid parameters and associated corners
     paramDb_.push_back(params);
     validCorners_.push_back(corners);
-    std::cout << "  Sample stored. Total valid samples: "
+    std::cout << " * Sample accepted. Total valid samples: "
               << validCorners_.size() << std::endl;
     return true;
   }
@@ -184,7 +187,8 @@ DetectedBoardParams CalibrationChecker::getDetectedBoardParams(
   float p_y = std::min(1.0f, std::max(0.0f, avg_y / image_size.height));
 
   // Calculate the coordinates closer to the border
-  float min_x = image_size.width, max_x = 0.0f, min_y = image_size.height, max_y = 0.0f;
+  float min_x = image_size.width, max_x = 0.0f, min_y = image_size.height,
+        max_y = 0.0f;
   for (const auto& corner : outside_corners) {
     if (corner.x < min_x) {
       min_x = corner.x;
@@ -239,9 +243,11 @@ bool CalibrationChecker::isGoodSample(const DetectedBoardParams& params) {
   int idx = 0;
   for (auto& stored_params : paramDb_) {
     float dist = param_distance(params, stored_params);
-    if (dist < 0.2f) {  // TODO tune the threshold
-      std::cout << "  Rejected: Too similar to sample #" << idx << " (dist=" <<
-      dist << ")" << std::endl;
+    if (dist < 0.2f) {
+      if (verbose_) {
+        std::cout << "  Rejected: Too similar to sample #" << idx
+                  << " (dist=" << dist << ")" << std::endl;
+      }
       return false;
     }
     idx++;
@@ -292,28 +298,33 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
   min_skew_ = min_skew;
   max_skew_ = max_skew;
 
-  std::cout << "Sample Collection Status (normalized values):" << std::endl;
-  std::cout << " - PosX status: [" << min_bx << " , " << max_bx << "] -> "
-            << max_bx - min_bx << "/" << idealParams_.b_x << std::endl;
-  std::cout << "  * PosX Score : " << std::setprecision(3) << pos_score_x_
-            << std::endl;
-  std::cout << " - PosY status: [" << min_by << " , " << max_by << "] -> "
-            << max_by - min_by << "/" << idealParams_.b_y << std::endl;
-  std::cout << "  * PosY Score : " << std::setprecision(3) << pos_score_y_
-            << std::endl;
-  std::cout << " - Size status: [" << min_size << " , " << max_size << "] -> "
-            << max_size - min_size << "/" << idealParams_.size << std::endl;
-  std::cout << "  * Size Score : " << std::setprecision(3) << size_score_
-            << std::endl;
-  std::cout << " - Skew status: [" << min_skew << " , " << max_skew << "] -> "
-            << max_skew - min_skew << "/" << idealParams_.skew << std::endl;
-  std::cout << "  * Skew Score : " << std::setprecision(3) << skew_score_
-            << std::endl;
+  if (verbose_) {
+    std::cout << "Sample Collection Status (normalized values):" << std::endl;
+    std::cout << " - PosX status: [" << min_bx << " , " << max_bx << "] -> "
+              << max_bx - min_bx << "/" << idealParams_.b_x << std::endl;
+    std::cout << "  * PosX Score : " << std::setprecision(3) << pos_score_x_
+              << std::endl;
+    std::cout << " - PosY status: [" << min_by << " , " << max_by << "] -> "
+              << max_by - min_by << "/" << idealParams_.b_y << std::endl;
+    std::cout << "  * PosY Score : " << std::setprecision(3) << pos_score_y_
+              << std::endl;
+    std::cout << " - Size status: [" << min_size << " , " << max_size << "] -> "
+              << max_size - min_size << "/" << idealParams_.size << std::endl;
+    std::cout << "  * Size Score : " << std::setprecision(3) << size_score_
+              << std::endl;
+    std::cout << " - Skew status: [" << min_skew << " , " << max_skew << "] -> "
+              << max_skew - min_skew << "/" << idealParams_.skew << std::endl;
+    std::cout << "  * Skew Score : " << std::setprecision(3) << skew_score_
+              << std::endl;
+  }
 
   if (paramDb_.size() < min_samples_) {
-    std::cout << "Sample collection incomplete: not reached the minimum sample "
-                 "count ("
-              << paramDb_.size() << "/" << min_samples_ << ")" << std::endl;
+    if (verbose_) {
+      std::cout
+          << "Sample collection incomplete: not reached the minimum sample "
+             "count ("
+          << paramDb_.size() << "/" << min_samples_ << ")" << std::endl;
+    }
     return false;
   }
 
@@ -331,7 +342,9 @@ bool CalibrationChecker::evaluateSampleCollectionStatus(
     return true;
   }
 
-  std::cout << "Sample collection incomplete." << std::endl;
+  if (verbose_) {
+    std::cout << "Sample collection incomplete." << std::endl;
+  }
   return false;
 }
 

@@ -124,7 +124,7 @@ int calibrate(int img_count, const std::string& folder, StereoCalib& calib_data,
             << std::endl;
 
   auto flags = use_intrinsic_prior ? cv::CALIB_USE_INTRINSIC_GUESS : 0;
-  if (use_intrinsic_prior) {
+  if (use_intrinsic_prior && verbose) {
     std::cout
         << "[DEBUG][calibrate] Using intrinsic parameters as calibration prior."
         << std::endl;

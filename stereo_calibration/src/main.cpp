@@ -29,7 +29,8 @@ void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
                                 cv::Mat& pos_indicator,
                                 cv::Mat& limits_indicator, float norm_x,
                                 float norm_y, float norm_size, float min_x,
-                                float max_x, float min_y, float max_y, bool draw_rect);
+                                float max_x, float min_y, float max_y,
+                                bool draw_rect);
 void addNewCheckerboardPoly(cv::Mat& coverage_indicator,
                             const std::vector<cv::Point2f>& pts_l);
 void applyCoverageIndicatorOverlay(cv::Mat& image,
@@ -445,7 +446,7 @@ int main(int argc, char* argv[]) {
           drawChessboardCorners(rgb2_d, cv::Size(h_edges, v_edges),
                                 cv::Mat(pts_r), found_r);
         }
-
+        
         if (image_stack_horizontal) {
           cv::hconcat(rgb_d_fill, rgb2_d, display);
         } else {
@@ -632,8 +633,7 @@ int main(int argc, char* argv[]) {
         }
 
         if ((key == 's' || key == 'S') || key == ' ') {
-          std::cout << "************************************************"
-                    << std::endl;
+          std::cout << "*** New acquisition triggered ***" << std::endl;
 
           missing_target_on_last_pics = !found_r || !found_l;
 
@@ -650,23 +650,21 @@ int main(int argc, char* argv[]) {
                                                    camera_resolution.height))) {
               low_target_variability_on_last_pics = false;
 
-              std::cout << " * Valid sample detected. Total valid samples: "
-                        << checker.getValidSampleCount() << std::endl;
-
               // saves the images
-              if (image_count<0) {
+              if (image_count < 0) {
                 image_count = 0;
               }
               cv::imwrite(image_folder + "image_left_" +
-                                std::to_string(image_count) + ".png",
-                            rgb_l);
+                              std::to_string(image_count) + ".png",
+                          rgb_l);
               cv::imwrite(image_folder + "image_right_" +
                               std::to_string(image_count) + ".png",
                           rgb_r);
-              std::cout << " * Images saved: " << image_folder + "image_left_" +
-                                std::to_string(image_count) + ".png and "
+              std::cout << " * Images saved: '"
+                        << image_folder + "image_left_" +
+                               std::to_string(image_count) + ".png' and '"
                         << image_folder + "image_right_" +
-                               std::to_string(image_count) + ".png"
+                               std::to_string(image_count) + ".png'"
                         << std::endl;
               image_count++;
 
@@ -684,15 +682,26 @@ int main(int argc, char* argv[]) {
               float norm_x = checker.getLastDetectedBoardParams().avg_pos.x;
               float norm_y = checker.getLastDetectedBoardParams().avg_pos.y;
               float norm_size = checker.getLastDetectedBoardParams().size;
-              addNewCheckerboardPosition(
-                  coverage_indicator, pos_indicator, limits_indicator, norm_x,
-                  norm_y, norm_size, min_bx, max_bx, min_by, max_by, (image_count >= 2));
+              addNewCheckerboardPosition(coverage_indicator, pos_indicator,
+                                         limits_indicator, norm_x, norm_y,
+                                         norm_size, min_bx, max_bx, min_by,
+                                         max_by, (image_count >= 2));
               addNewCheckerboardPoly(coverage_indicator, scaled_pts_l);
             } else {
-              std::cout << " ! Sample detected but not valid. Please try again "
-                           "with a new position."
+              std::cout << "  ! Checkerboard detected, but sample not valid. "
+                           "Please try again "
+                           "with a new position/orientation, not similar to "
+                           "other acquisitions."
                         << std::endl;
               low_target_variability_on_last_pics = true;
+            }
+          } else {
+            if (!found_l) {
+              std::cerr << "  ! Checkerboard not detected in the LEFT image."
+                        << std::endl;
+            } else if (!found_r) {
+              std::cerr << "  ! Checkerboard not detected in the RIGHT image."
+                        << std::endl;
             }
           }
         }
@@ -740,7 +749,6 @@ void addNewCheckerboardPosition(cv::Mat& coverage_indicator,
   int min_y_px = static_cast<int>(min_y * pos_indicator.rows);
   int max_y_px = static_cast<int>(max_y * pos_indicator.rows);
 
-  
   limits_indicator.setTo(cv::Scalar(0, 0, 0));
 
   if (draw_rect) {
