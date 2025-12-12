@@ -133,7 +133,7 @@ In order to collect good calibration data, ensure that:
 
 - The checkerboard is always fully visible in both left and right images. Corners detected in both images are highlighted with colored visual markers.
 - The checkerboard moves over a wide area of the image frame. "Green" polygons appear on the left image to indicate the covered areas. When one of the 4 zones of the left image becomes fully green, the coverage requirement is met for that part of the image.
-- Red areas on the side of the left frame indicate zones that are not yet covered by the checkerboard. Try to make them the smaller possible.
+- Red areas on the side of the left frame indicate zones that are not yet covered by the checkerboard. Try to make them as small as possible.
 - The checkerboard is moved closer and farther from the camera to ensure depth variation. At least one image covering almost the full left frame is required.
 - The checkerboard is tilted and rotated to provide different angles.
 
@@ -160,11 +160,11 @@ The "Calibrate" process will automatically start when either of these conditions
 
 ![Calibration GUI](./images/calibration_gui.png)
 
-For each metric, the GUI shows the following information:
+For each metric, the GUI shows the following information in a table:
 
 - **MIN_VAL**: Minimum value stored in all the samples collected so far.
 - **MAX_VAL**: Maximum value stored in all the samples collected so far.
-- **COVERAGE**: The difference between the MIN_VAL and MAX_VAL, represnting the range of variation in the collected samples.
+- **COVERAGE**: The difference between the MIN_VAL and MAX_VAL, representing the range of variation in the collected samples.
 - **REQUIRED**: The minimum required value for the COVERAGE to consider the metric as satisfied.
 - **SCORE**: The percentage score for the metric, calculated as (COVERAGE / REQUIRED) * 100%.
 
@@ -267,4 +267,3 @@ Usage: ./zed_reprojection_viewer [options]
 - Virtual Stereo Camera with fisheye lenses using camera serial numbers:
 
   `./zed_reprojection_viewer --fisheye --virtual --left_sn <serial_number> --right_sn <serial_number>`
-
