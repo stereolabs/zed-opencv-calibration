@@ -127,6 +127,8 @@ When the checkerboard is placed in a position that you want to capture, press th
 - If the checkerboard is detected in both images, and the captured data are different enough from the previously captured images, the data is accepted, and the quality indicators are updated.
 - If the data is not accepted, a message is displayed in the GUI output indicating the reason (e.g., checkerboard not detected, not enough variation, etc.).
 
+The blue dots that appear on the left image indicate the center of each checkerboard that has been detected and accepted so far. The size of the dots indicates the relative size of the checkerboard in the image (bigger dots mean closer to the camera).
+
 In order to collect good calibration data, ensure that:
 
 - The checkerboard is always fully visible in both left and right images. Corners detected in both images are highlighted with colored visual markers.
@@ -135,18 +137,36 @@ In order to collect good calibration data, ensure that:
 - The checkerboard is moved closer and farther from the camera to ensure depth variation. At least one image covering almost the full left frame is required.
 - The checkerboard is tilted and rotated to provide different angles.
 
-The "X" coverage, "Y" coverage, "Size", and "Skew" percentages indicate the quality of the collected data for each criterion.
+The "X", "Y", "Size", and "Skew" percentages indicate the quality of the collected data for each criterion.
 
-If you cannot reach 100% for one of the metrics, be sure that it's as high as possible.
+For **X** and **Y**, the minimum and maximum values correspond to the minimum and maximum position of the corner of the checkerboard closest to the image border. The COVERAGE indicates the size of the horizontal and vertical area covered by the checkerboard corners in the left image. The higher the coverage, the more the image is covered.
+
+For **Size**, the minimum and maximum values correspond to the smallest and largest size of the checkerboard in the left image. The COVERAGE indicates the range of sizes of the checkerboard in the collected samples. A higher coverage means that the checkerboard was captured at a wider range of distances from the camera.
+
+For **Skew**, the minimum and maximum values correspond to the minimum and maximum skewness angle of the checkerboard in the left image. The COVERAGE indicates the range of skew angles of the checkerboard in the collected samples. A higher coverage means that the checkerboard was captured at a wider range of angles. A value of 0° means the checkerboard is perfectly fronto-parallel to the camera, a theoretical maximum of 90° means the checkerboard is seen edge-on. Normally, the maximum achievable skew is around 40°.
+
+If you cannot reach 100% for one of the metrics, be sure that it's as high as possible, and move the checkerboard in different positions to maximize the coverage by acquiring the maximum number of samples.
+
+Here are some tips to improve each metric:
 
 - To raise the "X" and "Y" metrics move the checkerboard to the edges and corners of the left image while keeping it fully visible in the right frame.
-- To raise the "Size" metric, move the checkerboard closer and farther from the camera. You must acquire at least one image where the checkerboard is covering almost the full left image and one where it's smaller and corners are barely detected.
-- To raise the "Skew" metric, tilt and rotate the checkerboard in different angles. It's easier to obtain different skew values if the checkerboard is closer to the camera and rotated around the vertical and horizontal axes simultaneously.
+- To raise the "Size" metric, move the checkerboard closer and farther from the camera. You must acquire at least one image where the checkerboard is covering almost the full left image and one where it's smaller and corners are barely detected [see the image below].
+- To raise the "Skew" metric, rotate the checkerboard in different angles. It's easier to obtain different skew values if the checkerboard is closer to the camera and rotated around the vertical and horizontal axes simultaneously.
 
 The "Calibrate" process will automatically start when either of these conditions is met:
 
 - All metrics reach 100% and the minimum number of samples is collected.
 - The maximum number of samples is reached (even if not all metrics reach 100%).
+
+![Calibration GUI](./images/calibration_gui.png)
+
+For each metric, the GUI shows the following information:
+
+- **MIN_VAL**: Minimum value stored in all the samples collected so far.
+- **MAX_VAL**: Maximum value stored in all the samples collected so far.
+- **COVERAGE**: The difference between the MIN_VAL and MAX_VAL, represnting the range of variation in the collected samples.
+- **REQUIRED**: The minimum required value for the COVERAGE to consider the metric as satisfied.
+- **SCORE**: The percentage score for the metric, calculated as (COVERAGE / REQUIRED) * 100%.
 
 You can follow the steps of the calibration process in the terminal output:
 
