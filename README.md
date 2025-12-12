@@ -131,10 +131,22 @@ In order to collect good calibration data, ensure that:
 
 - The checkerboard is always fully visible in both left and right images. Corners detected in both images are highlighted with colored visual markers.
 - The checkerboard moves over a wide area of the image frame. "Green" polygons appear on the left image to indicate the covered areas. When one of the 4 zones of the left image becomes fully green, the coverage requirement is met for that part of the image.
+- Red areas on the side of the left frame indicate zones that are not yet covered by the checkerboard. Try to make them the smaller possible.
 - The checkerboard is moved closer and farther from the camera to ensure depth variation. At least one image covering almost the full left frame is required.
 - The checkerboard is tilted and rotated to provide different angles.
 
-The "Horizontal Coverage", "Vertical Coverage", "Checkerboard sizes", and "Checkerboard skews" percentages indicates the quality of the collected data for each criterion. When all criteria reach 100%, a minimum number of images is collected, or a maximum number of images is reached, the "Calibrate" process will automatically start.
+The "X" coverage, "Y" coverage, "Size", and "Skew" percentages indicates the quality of the collected data for each criterion. 
+
+If you cannot reach 100% for one of the metrics, be sure that it's higher as possible.
+
+- To rise the "X" and "Y" metrics move the checkerboard to the edges and corners of the left image while keeping it fully visible in the right rame.
+- To rise the "Size" metric, move the checkerboard closer and farther from the camera. You must acquire at least one image where the checkerboard is covering almost the full left image and one where it's smaller and corners are barely detected.
+- To rise the "Skew" metric, tilt and rotate the checkerboard in different angles. It's easier to obtain different skew values if the checkerboard is closer to the camera and rotated around the vertical and horizontal axes simultaneously.
+
+The "Calibrate" process will automatically start when either of these conditions is met:
+
+- All metrics reach 100% and the minimum number of samples is collected.
+- The maximum number of samples is reached (even if not all metrics reach 100%).
 
 You can follow the steps of the calibration process in the terminal output:
 
@@ -143,11 +155,16 @@ You can follow the steps of the calibration process in the terminal output:
 
 Good calibration results typically yield a reprojection error below 0.5 pixels for each calibration step.
 
-In case one of the reprojection errors is too high, the result of the calibration is not accurate enough, and you should redo the calibration process verifying that the checkerboard is flat and well-lit, the lenses of the cameras are clean, and that the light of the environment is stable and not generating reflections or glares on the checkerboard.
+If any reprojection error is too high, the calibration is not accurate enough and should be redone. Before recalibrating, verify the following:
+
+- The checkerboard is perfectly flat and securely mounted.
+- The checkerboard is well-lit with even, stable lighting.
+- Camera lenses are clean and free of smudges or dust.
+- No reflections or glare appear on the checkerboard surface.
 
 After a good calibration is complete, two files are generated:
 
-- `zed_calibration_<serial_number>.yml`: Contains intrinsic and extrinsic parameters for the stereo camera setup ins OpenCV format.
+- `zed_calibration_<serial_number>.yml`: Contains intrinsic and extrinsic parameters for the stereo camera setup in OpenCV format.
 - `SN<serial_number>.conf`: Contains the calibration parameters in ZED SDK format.
 
 You can use these files in your ZED SDK applications:
