@@ -341,11 +341,10 @@ int main(int argc, char* argv[]) {
               << zed_info.camera_configuration.resolution.height << std::endl;
 
     // change can_use_calib_prior if you dont want to use the calibration file
-    can_use_calib_prior = false;
-    //status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
+    can_use_calib_prior =  status != sl::ERROR_CODE::INVALID_CALIBRATION_FILE;
 
     std::cout << " * Using prior calibration: "
-              << (can_use_calib_prior ? "Yes" : "No") << std::endl;    
+              << (can_use_calib_prior ? "Yes" : "No") << std::endl;
 
     if (can_use_calib_prior)
       calib.setFrom(zed_info.camera_configuration.calibration_parameters_raw);
