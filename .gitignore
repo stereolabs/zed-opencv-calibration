@@ -35,3 +35,7 @@ build
 *.out
 *.app
 
+### VSCode ###
+.vscode/
+*.code-workspace
+.history/

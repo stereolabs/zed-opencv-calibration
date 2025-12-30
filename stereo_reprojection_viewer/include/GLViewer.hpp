@@ -25,7 +25,7 @@
 
 //// UTILS //////
 using namespace std;
-void print(std::string msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, std::string msg_suffix = "") ;
+void print(const std::string& msg_prefix, sl::ERROR_CODE err_code = sl::ERROR_CODE::SUCCESS, const std::string& msg_suffix = "") ;
 
 /////////////////
 
