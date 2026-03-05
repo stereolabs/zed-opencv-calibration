@@ -183,15 +183,13 @@ int main(int argc, char* argv[]) {
   // Setup the calibration checker
   const DetectedBoardParams idealParams = {
       cv::Point2f(min_avg_x_coverage, min_avg_y_coverage), min_area_range,
-      min_skew_range, min_b_x_coverage, min_b_y_coverage};
-  CalibrationChecker checker(cv::Size(h_edges, v_edges), square_size,
-                             min_samples, max_samples, min_target_area,
-                             idealParams, verbose);
+      min_skew_range, min_b_x_coverage, min_b_y_coverage};  
 
   // Flags
   bool is_dual_mono_camera = false;
   bool is_4k_camera = false;
 
+  // Parse command line arguments
   Args args;
   args.parse(argc, argv);
 
@@ -208,6 +206,11 @@ int main(int argc, char* argv[]) {
                "needed. Use the '-h' option for help."
             << std::endl;
   std::cout << std::endl;
+
+  // Initialize the calibration checker
+  CalibrationChecker checker(cv::Size(h_edges, v_edges), square_size,
+                             min_samples, max_samples, min_target_area,
+                             idealParams, verbose);
 
   // Initialize the stereo calibration data structure
   StereoCalib calib;
