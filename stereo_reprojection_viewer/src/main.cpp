@@ -92,8 +92,8 @@ cv::Mat slMat2cvMat(sl::Mat &input) {
     case sl::MAT_TYPE::U8_C3:
       cv_type = CV_8UC3;
       break;
-    case sl::MAT_TYPE::U8_C4:
-      cv_type = CV_8UC4;
+    case sl::MAT_TYPE::U8_C3:
+      cv_type = CV_8UC3;
       break;
     default:
       break;
@@ -430,10 +430,10 @@ int main(int argc, char **argv) {
   Mat point_cloud(res, sl::MAT_TYPE::F32_C4, MEM::BOTH);
   auto pc_ocv = slMat2cvMat(point_cloud);
 
-  Mat image(res, sl::MAT_TYPE::U8_C4, MEM::CPU);
+  Mat image(res, sl::MAT_TYPE::U8_C3, MEM::CPU);
   auto im_ocv = slMat2cvMat(image);
 
-  Mat image_rect(res, sl::MAT_TYPE::U8_C4, MEM::CPU);
+  Mat image_rect(res, sl::MAT_TYPE::U8_C3, MEM::CPU);
   auto im_rect_ocv = slMat2cvMat(image_rect);
 
   const bool fisheye = args.is_fisheye_lens;  // Set to true if using fisheye
@@ -483,10 +483,10 @@ int main(int argc, char **argv) {
 
       point_cloud.updateCPUfromGPU();
 
-      zed.retrieveImage(image, VIEW::LEFT_UNRECTIFIED, MEM::CPU, res);
+      zed.retrieveImage(image, VIEW::LEFT_UNRECTIFIED_BGR, MEM::CPU, res);
 
       reproDepth(pc_ocv, im_ocv, disto, K, fisheye);
-      zed.retrieveImage(image_rect, VIEW::LEFT, MEM::CPU, res);
+      zed.retrieveImage(image_rect, VIEW::LEFT_BGR, MEM::CPU, res);
 
 #if SHOW_MASK
       // Apply mask to rectified image

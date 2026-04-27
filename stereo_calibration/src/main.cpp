@@ -53,7 +53,7 @@ const float min_avg_y_coverage =
 const float min_area_range =
     0.4f;  // Checkerboard area range size [min_area-max_area]
 const float min_skew_range =
-    0.375f;  // Checkerboard skew ange size [min_skew-max_skew]
+    0.35f;  // Checkerboard skew ange size [min_skew-max_skew]
 const float min_b_x_coverage = 0.8f;  // Checkerboard X position close to border
                                       // covering percentage of the image width
 const float min_b_y_coverage = 0.8f;  // Checkerboard Y position close to border
@@ -361,13 +361,13 @@ int main(int argc, char* argv[]) {
 
     sl::Resolution camera_resolution = zed_info.camera_configuration.resolution;
 
-    sl::Mat zed_imageL(camera_resolution, sl::MAT_TYPE::U8_C4, sl::MEM::CPU);
+    sl::Mat zed_imageL(camera_resolution, sl::MAT_TYPE::U8_C3, sl::MEM::CPU);
     auto rgb_l = cv::Mat(camera_resolution.height, camera_resolution.width,
-                         CV_8UC4, zed_imageL.getPtr<sl::uchar1>());
+                         CV_8UC3, zed_imageL.getPtr<sl::uchar1>());
 
-    sl::Mat zed_imageR(camera_resolution, sl::MAT_TYPE::U8_C4, sl::MEM::CPU);
+    sl::Mat zed_imageR(camera_resolution, sl::MAT_TYPE::U8_C3, sl::MEM::CPU);
     auto rgb_r = cv::Mat(camera_resolution.height, camera_resolution.width,
-                         CV_8UC4, zed_imageR.getPtr<sl::uchar1>());
+                         CV_8UC3, zed_imageR.getPtr<sl::uchar1>());
 
     cv::Mat coverage_indicator =
         cv::Mat::zeros(display_size.height, display_size.width, CV_8UC1);
@@ -425,8 +425,8 @@ int main(int argc, char* argv[]) {
       const cv::Scalar warn_color = cv::Scalar(0, 50, 250);
 
       if (zed_camera.grab() == sl::ERROR_CODE::SUCCESS) {
-        zed_camera.retrieveImage(zed_imageL, sl::VIEW::LEFT_UNRECTIFIED);
-        zed_camera.retrieveImage(zed_imageR, sl::VIEW::RIGHT_UNRECTIFIED);
+        zed_camera.retrieveImage(zed_imageL, sl::VIEW::LEFT_UNRECTIFIED_BGR);
+        zed_camera.retrieveImage(zed_imageR, sl::VIEW::RIGHT_UNRECTIFIED_BGR);
 
         cv::resize(rgb_l, rgb_d, display_size);
         cv::resize(rgb_r, rgb2_d, display_size);
