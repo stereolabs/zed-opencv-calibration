@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
@@ -141,6 +142,9 @@ struct Args {
 };
 
 int main(int argc, char* argv[]) {
+  // Allow the ZED SDK to open the camera even if it has no valid calibration
+  setenv("ZED_SDK_ALLOW_UNCALIBRATED_MODE", "1", 1);
+
   const DetectedBoardParams idealParams = {
       cv::Point2f(min_avg_x_coverage, min_avg_y_coverage), min_area_range,
       min_skew_range, min_b_x_coverage, min_b_y_coverage};
